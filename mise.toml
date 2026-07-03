@@ -1,0 +1,49 @@
+[tasks.build]
+description = "Build all binaries"
+run = [
+  "go build -o bin/q ./cmd/q",
+  "go build -o bin/pia ./cmd/pia",
+  "go build -o bin/repos ./cmd/repos",
+  "go build -o bin/todo ./cmd/todo",
+]
+
+[tasks."build:q"]
+description = "Build q binary"
+run = "go build -o bin/q ./cmd/q"
+
+[tasks."build:pia"]
+description = "Build pia binary"
+run = "go build -o bin/pia ./cmd/pia"
+
+[tasks."build:repos"]
+description = "Build repos binary"
+run = "go build -o bin/repos ./cmd/repos"
+
+[tasks."build:todo"]
+description = "Build todo binary"
+run = "go build -o bin/todo ./cmd/todo"
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
+
+[tasks."test:race"]
+description = "Run all tests with race detection"
+run = "go test -race ./..."
+
+[tasks.lint]
+description = "Run golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.install]
+description = "Install all binaries to GOPATH/bin"
+run = [
+  "go install ./cmd/q",
+  "go install ./cmd/pia",
+  "go install ./cmd/repos",
+  "go install ./cmd/todo",
+]
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "rm -rf bin/"
