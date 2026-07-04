@@ -16,14 +16,16 @@ type AddApp struct {
 	width  int
 	height int
 	saved  bool
+	aiUsed bool
 }
 
 // RunAdd opens a TUI form pre-filled with AI-parsed (or heuristic) data for review.
 // If text is empty, opens a blank form.
 func RunAdd(store *Store, repoID, text string) error {
 	var parsed ParsedTask
+	var aiUsed bool
 	if text != "" {
-		parsed = AIParse(text)
+		parsed, aiUsed = AIParseWithStatus(text)
 	}
 
 	// Build a pseudo-task to seed the form
@@ -33,6 +35,7 @@ func RunAdd(store *Store, repoID, text string) error {
 		Priority:    parsed.Priority,
 		DueDate:     parsed.DueDate,
 		Description: parsed.Description,
+		RepoID:      repoID,
 	}
 	// If empty input, set defaults
 	if text == "" {
@@ -43,6 +46,7 @@ func RunAdd(store *Store, repoID, text string) error {
 		store:  store,
 		repoID: repoID,
 		form:   NewFormModel(seed, repoID, 80),
+		aiUsed: aiUsed,
 	}
 	// Clear the editID since this is a new task (not editing existing)
 	app.form.editID = nil
@@ -103,7 +107,11 @@ func (a *AddApp) View() string {
 	// Header
 	header := StyleTitle.Render("  Add Task")
 	if a.form.fields[0].value != "" {
-		header += StyleDim.Render("  (AI pre-filled, review & save)")
+		if a.aiUsed {
+			header += StyleDim.Render("  (AI pre-filled, review & save)")
+		} else {
+			header += StyleDim.Render("  (heuristic pre-fill, q daemon unavailable)")
+		}
 	}
 
 	// Form centered

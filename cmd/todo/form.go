@@ -270,12 +270,18 @@ func (f *FormModel) handleEnterKey() FormResult {
 
 	field := &f.fields[f.fieldIndex]
 	if field.cycler != nil {
+		cycled := false
 		for i, v := range field.cycler {
 			if v == field.value {
 				field.value = field.cycler[(i+1)%len(field.cycler)]
+				cycled = true
 
 				break
 			}
+		}
+
+		if !cycled && len(field.cycler) > 0 {
+			field.value = field.cycler[0]
 		}
 	} else {
 		f.editing = true

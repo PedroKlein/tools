@@ -46,8 +46,14 @@ Rules:
 // AIParse attempts to parse a task description using the q daemon for AI inference.
 // Falls back to heuristic parsing if the daemon is unavailable or returns invalid data.
 func AIParse(text string) ParsedTask {
+	parsed, _ := AIParseWithStatus(text)
+	return parsed
+}
+
+// AIParseWithStatus is like AIParse but also reports whether AI was actually used.
+func AIParseWithStatus(text string) (ParsedTask, bool) {
 	if !pirpc.IsAvailable() {
-		return HeuristicParse(text)
+		return HeuristicParse(text), false
 	}
 
 	prompt := parsePrompt(text)
@@ -56,15 +62,15 @@ func AIParse(text string) ParsedTask {
 	defer func() { _ = pirpc.ResetSession() }()
 
 	if err != nil {
-		return HeuristicParse(text)
+		return HeuristicParse(text), false
 	}
 
 	parsed, err := parseAIResponse(response)
 	if err != nil {
-		return HeuristicParse(text)
+		return HeuristicParse(text), false
 	}
 
-	return parsed
+	return parsed, true
 }
 
 // parseAIResponse extracts a ParsedTask from the AI's JSON response.
