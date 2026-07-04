@@ -103,9 +103,6 @@ func syncSettings(agentDir, outDir, _ string, profile Profile) error {
 		base["packages"] = pkgs
 	}
 
-	// Set session dir
-	base["sessionDir"] = filepath.Join(outDir, "sessions")
-
 	// Write merged settings
 	out, err := json.MarshalIndent(base, "", "  ")
 	if err != nil {
