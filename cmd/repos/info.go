@@ -15,6 +15,7 @@ type RepoInfo struct {
 	DefaultBranch string   `json:"defaultBranch"`
 	Worktrees     []string `json:"worktrees"`
 	Dirty         bool     `json:"dirty"`
+	Bare          bool     `json:"bare"`
 }
 
 func runInfo(args []string) {
@@ -87,23 +88,33 @@ func runInfo(args []string) {
 
 // getRepoInfo gathers information about a single repository.
 func getRepoInfo(_, relPath, repoPath string) RepoInfo {
-	bareDir := filepath.Join(repoPath, ".git")
+	gitDir := filepath.Join(repoPath, ".git")
+	bare := isBareRepo(repoPath)
 
 	info := RepoInfo{
 		Path:     relPath,
 		FullPath: repoPath,
+		Bare:     bare,
 	}
 
 	// Remote URL
-	if url, err := gitOutput(bareDir, "remote", "get-url", "origin"); err == nil {
+	if url, err := gitOutput(gitDir, "remote", "get-url", "origin"); err == nil {
 		info.Remote = strings.TrimSpace(url)
 	}
 
-	// Default branch
-	info.DefaultBranch = detectDefaultBranch(bareDir)
+	if bare {
+		getBareRepoInfo(&info, repoPath, gitDir)
+	} else {
+		getFlatRepoInfo(&info, repoPath)
+	}
 
-	// Worktrees
-	out, err := gitOutput(bareDir, "worktree", "list", "--porcelain")
+	return info
+}
+
+func getBareRepoInfo(info *RepoInfo, repoPath, gitDir string) {
+	info.DefaultBranch = detectDefaultBranch(gitDir)
+
+	out, err := gitOutput(gitDir, "worktree", "list", "--porcelain")
 	if err == nil {
 		for line := range strings.SplitSeq(out, "\n") {
 			if !strings.HasPrefix(line, "worktree ") {
@@ -111,7 +122,7 @@ func getRepoInfo(_, relPath, repoPath string) RepoInfo {
 			}
 
 			wtPath := strings.TrimPrefix(line, "worktree ")
-			if wtPath == bareDir {
+			if wtPath == gitDir {
 				continue
 			}
 
@@ -119,7 +130,6 @@ func getRepoInfo(_, relPath, repoPath string) RepoInfo {
 		}
 	}
 
-	// Dirty check — any worktree has uncommitted changes
 	for _, wt := range info.Worktrees {
 		wtPath := filepath.Join(repoPath, wt)
 
@@ -133,6 +143,15 @@ func getRepoInfo(_, relPath, repoPath string) RepoInfo {
 			break
 		}
 	}
+}
 
-	return info
+func getFlatRepoInfo(info *RepoInfo, repoPath string) {
+	if branchOut, err := gitOutput(repoPath, "symbolic-ref", "--short", "HEAD"); err == nil {
+		info.DefaultBranch = strings.TrimSpace(branchOut)
+	}
+
+	statusOut, err := gitOutput(repoPath, "status", "--porcelain")
+	if err == nil && strings.TrimSpace(statusOut) != "" {
+		info.Dirty = true
+	}
 }

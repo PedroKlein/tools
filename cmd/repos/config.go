@@ -43,6 +43,22 @@ func expandTilde(path string) string {
 	return path
 }
 
+// isGitRepo checks if dir contains a git repository by looking for
+// .git/ as a directory containing a config file. Returns false on any error
+// or if .git is a file (worktree pointer).
+func isGitRepo(dir string) bool {
+	gitPath := filepath.Join(dir, ".git")
+
+	info, err := os.Stat(gitPath)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+
+	_, err = os.Stat(filepath.Join(gitPath, "config"))
+
+	return err == nil
+}
+
 // isBareRepo checks if dir contains a bare git repository by looking for
 // .git/config with core.bare = true. Returns false on any error or if
 // the directory is not a bare repo. The .git entry must be a directory

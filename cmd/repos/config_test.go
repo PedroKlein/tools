@@ -157,3 +157,74 @@ func TestReposRoot(t *testing.T) {
 		})
 	}
 }
+
+func TestIsGitRepo(t *testing.T) {
+	t.Run("bare repo", func(t *testing.T) {
+		dir := t.TempDir()
+
+		gitDir := filepath.Join(dir, ".git")
+		if err := os.MkdirAll(gitDir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := "[core]\n\tbare = true\n"
+		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if !isGitRepo(dir) {
+			t.Error("expected isGitRepo to return true for bare repo")
+		}
+	})
+
+	t.Run("non-bare repo", func(t *testing.T) {
+		dir := t.TempDir()
+
+		gitDir := filepath.Join(dir, ".git")
+		if err := os.MkdirAll(gitDir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := "[core]\n\tbare = false\n"
+		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if !isGitRepo(dir) {
+			t.Error("expected isGitRepo to return true for non-bare repo")
+		}
+	})
+
+	t.Run(".git is a file", func(t *testing.T) {
+		dir := t.TempDir()
+
+		gitFile := filepath.Join(dir, ".git")
+		if err := os.WriteFile(gitFile, []byte("gitdir: /path/to/bare/worktrees/feat\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if isGitRepo(dir) {
+			t.Error("expected isGitRepo to return false when .git is a file")
+		}
+	})
+
+	t.Run("no .git", func(t *testing.T) {
+		dir := t.TempDir()
+		if isGitRepo(dir) {
+			t.Error("expected isGitRepo to return false for empty directory")
+		}
+	})
+
+	t.Run(".git dir without config", func(t *testing.T) {
+		dir := t.TempDir()
+
+		gitDir := filepath.Join(dir, ".git")
+		if err := os.MkdirAll(gitDir, 0o750); err != nil {
+			t.Fatal(err)
+		}
+
+		if isGitRepo(dir) {
+			t.Error("expected isGitRepo to return false when .git has no config")
+		}
+	})
+}

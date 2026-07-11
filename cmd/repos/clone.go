@@ -20,16 +20,17 @@ type CloneResult struct {
 func runClone(args []string) {
 	if len(args) == 0 {
 		if jsonOutput {
-			writeJSONError("usage: repos clone <url> [-b branch]", ExitError)
+			writeJSONError("usage: repos clone <url> [-b branch] [--flat]", ExitError)
 		}
 
-		fmt.Fprintln(os.Stderr, "usage: repos clone <url> [-b branch]")
+		fmt.Fprintln(os.Stderr, "usage: repos clone <url> [-b branch] [--flat]")
 		os.Exit(ExitError)
 	}
 
 	var url, branch string
 
 	quiet := false
+	flat := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -47,6 +48,8 @@ func runClone(args []string) {
 			branch = args[i]
 		case "-q", "--quiet":
 			quiet = true
+		case "--flat":
+			flat = true
 		default:
 			if url == "" {
 				url = args[i]
@@ -63,10 +66,10 @@ func runClone(args []string) {
 
 	if url == "" {
 		if jsonOutput {
-			writeJSONError("usage: repos clone <url> [-b branch]", ExitError)
+			writeJSONError("usage: repos clone <url> [-b branch] [--flat]", ExitError)
 		}
 
-		fmt.Fprintln(os.Stderr, "usage: repos clone <url> [-b branch]")
+		fmt.Fprintln(os.Stderr, "usage: repos clone <url> [-b branch] [--flat]")
 		os.Exit(ExitError)
 	}
 
@@ -106,6 +109,11 @@ func runClone(args []string) {
 
 	if !quiet && !jsonOutput {
 		fmt.Printf("Cloning %s into %s...\n", url, repoDir)
+	}
+
+	if flat {
+		runFlatClone(repoDir, url, branch, host, owner, repo, quiet)
+		return
 	}
 
 	// Clone bare
@@ -178,6 +186,73 @@ func runClone(args []string) {
 		Host:   host,
 		Owner:  owner,
 		Branch: worktreeBranch,
+	}})
+}
+
+// runFlatClone performs a regular (non-bare) git clone into the canonical path.
+func runFlatClone(repoDir, url, branch, host, owner, repo string, quiet bool) {
+	cloneArgs := []string{"clone", url, "."}
+	if branch != "" {
+		cloneArgs = []string{"clone", "--branch", branch, url, "."}
+	}
+
+	var cloneErr error
+	if quiet || jsonOutput {
+		cloneErr = gitCmdQuiet(repoDir, cloneArgs...)
+	} else {
+		cloneErr = gitCmd(repoDir, cloneArgs...)
+	}
+
+	if cloneErr != nil {
+		if removeErr := os.RemoveAll(repoDir); removeErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: cleanup failed: %v\n", removeErr)
+		}
+
+		if jsonOutput {
+			writeJSONError(fmt.Sprintf("error cloning: %v", cloneErr), ExitError)
+		}
+
+		fmt.Fprintf(os.Stderr, "error cloning: %v\n", cloneErr)
+		os.Exit(ExitError)
+	}
+
+	// Detect the checked-out branch
+	checkedOut := branch
+	if checkedOut == "" {
+		if out, err := gitOutput(repoDir, "symbolic-ref", "--short", "HEAD"); err == nil {
+			checkedOut = strings.TrimSpace(out)
+		} else {
+			checkedOut = "main"
+		}
+	}
+
+	relPath := filepath.Join(host, owner, repo)
+
+	if jsonOutput {
+		writeJSON(CloneResult{
+			Path:     relPath,
+			FullPath: repoDir,
+			Branch:   checkedOut,
+			Remote:   url,
+		})
+
+		return
+	}
+
+	if quiet {
+		fmt.Println(repoDir)
+		return
+	}
+
+	fmt.Printf("\n%s/%s/%s (flat)\n", host, owner, repo)
+
+	// Run post-clone hooks
+	runHooksForEvent("post-clone", []HookRepoInfo{{
+		Path:   repoDir,
+		Name:   repo,
+		Host:   host,
+		Owner:  owner,
+		Branch: checkedOut,
 	}})
 }
 

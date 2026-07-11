@@ -120,6 +120,23 @@ func auditRepoStructured(repoPath string) []Finding {
 
 	bareDir := filepath.Join(repoPath, ".git")
 
+	// For non-bare repos, check dirty status on repo root directly
+	if !isBareRepo(repoPath) {
+		statusOut, err := gitOutput(repoPath, "status", "--porcelain")
+		if err == nil && strings.TrimSpace(statusOut) != "" {
+			lines := strings.Split(strings.TrimSpace(statusOut), "\n")
+			findings = append(findings, Finding{
+				Type:     "dirty_worktree",
+				Worktree: ".",
+				Files:    len(lines),
+			})
+		}
+
+		findings = append(findings, auditBranches(repoPath)...)
+
+		return findings
+	}
+
 	// List worktrees
 	out, err := gitOutput(bareDir, "worktree", "list", "--porcelain")
 	if err != nil {
@@ -155,8 +172,16 @@ func auditRepoStructured(repoPath string) []Finding {
 		}
 	}
 
-	// Check for local branches not pushed to remote
-	branchOut, err := gitOutput(bareDir, "for-each-ref", "--format=%(refname:short) %(upstream:track)", "refs/heads/")
+	findings = append(findings, auditBranches(bareDir)...)
+
+	return findings
+}
+
+// auditBranches checks for unpushed or untracked branches in the given git dir.
+func auditBranches(gitDir string) []Finding {
+	var findings []Finding
+
+	branchOut, err := gitOutput(gitDir, "for-each-ref", "--format=%(refname:short) %(upstream:track)", "refs/heads/")
 	if err != nil {
 		return findings
 	}
@@ -183,10 +208,10 @@ func auditRepoStructured(repoPath string) []Finding {
 		}
 
 		// Check if branch has no upstream at all
-		upOut, _ := gitOutput(bareDir, "config", "branch."+branch+".remote")
+		upOut, _ := gitOutput(gitDir, "config", "branch."+branch+".remote")
 		if strings.TrimSpace(upOut) == "" {
 			// Check if a matching remote ref exists
-			_, refErr := gitOutput(bareDir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch)
+			_, refErr := gitOutput(gitDir, "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch)
 			if refErr == nil {
 				continue
 			}

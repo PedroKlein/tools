@@ -60,7 +60,13 @@ func runSync(args []string) {
 		repoPath := filepath.Join(root, repo)
 		bareDir := filepath.Join(repoPath, ".git")
 
-		result := syncRepo(bareDir)
+		var result syncResult
+		if isBareRepo(repoPath) {
+			result = syncRepo(bareDir)
+		} else {
+			result = syncFlatRepo(repoPath)
+		}
+
 		entry := SyncEntry{Path: repo}
 
 		switch result.status {
@@ -274,4 +280,62 @@ func gitCmdQuiet(dir string, args ...string) error {
 	}
 
 	return nil
+}
+
+// syncFlatRepo syncs a non-bare (flat) repo using fetch + ff-only merge.
+func syncFlatRepo(repoPath string) syncResult {
+	// Fetch from origin
+	if err := gitCmdQuiet(repoPath, "fetch", "origin", "--prune"); err != nil {
+		return syncResult{syncError, fmt.Sprintf("fetch failed: %v", err)}
+	}
+
+	// Detect current branch
+	branchOut, err := gitOutput(repoPath, "symbolic-ref", "--short", "HEAD")
+	if err != nil {
+		return syncResult{syncError, "cannot determine current branch"}
+	}
+
+	branch := strings.TrimSpace(branchOut)
+
+	// Get local and remote refs
+	localRef, err := gitOutput(repoPath, "rev-parse", "HEAD")
+	if err != nil {
+		return syncResult{syncError, "cannot get HEAD"}
+	}
+
+	localRef = strings.TrimSpace(localRef)
+
+	remoteRef, err := gitOutput(repoPath, "rev-parse", "refs/remotes/origin/"+branch)
+	if err != nil {
+		return syncResult{syncError, "no remote branch origin/" + branch}
+	}
+
+	remoteRef = strings.TrimSpace(remoteRef)
+
+	if localRef == remoteRef {
+		return syncResult{syncUpToDate, ""}
+	}
+
+	// Check if fast-forward is possible
+	mergeBase, err := gitOutput(repoPath, "merge-base", localRef, remoteRef)
+	if err != nil {
+		return syncResult{syncError, "cannot compute merge-base"}
+	}
+
+	mergeBase = strings.TrimSpace(mergeBase)
+
+	if mergeBase != localRef {
+		return syncResult{syncDiverged, branch}
+	}
+
+	// Fast-forward merge
+	if err := gitCmdQuiet(repoPath, "merge", "--ff-only", "origin/"+branch); err != nil {
+		return syncResult{syncError, fmt.Sprintf("ff-only merge failed: %v", err)}
+	}
+
+	// Count commits advanced
+	countOut, _ := gitOutput(repoPath, "rev-list", "--count", localRef+".."+remoteRef)
+	count := strings.TrimSpace(countOut)
+
+	return syncResult{syncUpdated, fmt.Sprintf("%s +%s commits", branch, count)}
 }
