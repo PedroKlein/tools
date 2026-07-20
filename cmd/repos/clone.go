@@ -149,13 +149,21 @@ func runClone(args []string) {
 		worktreeBranch = branch
 	}
 
-	// Create worktree
+	// Create worktree via the shared cascade helper.
 	worktreeDir := filepath.Join(repoDir, worktreeBranch)
-	if err := gitCmdQuiet(bareDir, "worktree", "add", worktreeDir, worktreeBranch); err != nil {
-		_ = gitCmdQuiet(bareDir, "worktree", "add", worktreeDir, "origin/"+worktreeBranch)
+	if err := addDefaultWorktree(bareDir, worktreeDir, worktreeBranch); err != nil {
+		msg := fmt.Sprintf("bare repo cloned to %s but worktree add for %q failed: %v. Retry with: repos wt add %s", bareDir, worktreeBranch, err, worktreeBranch)
+
+		if jsonOutput {
+			writeJSONError(msg, ExitError)
+		}
+
+		fmt.Fprintf(os.Stderr, "error: %s\n", msg)
+		os.Exit(ExitError)
 	}
 
-	// Set up tracking
+	// Set up tracking (best-effort; branch may already track after --track, and
+	// an orphan branch has no remote yet).
 	_ = gitCmdQuiet(bareDir, "branch", "--set-upstream-to=origin/"+worktreeBranch, worktreeBranch)
 
 	relPath := filepath.Join(host, owner, repo)
@@ -254,6 +262,38 @@ func runFlatClone(repoDir, url, branch, host, owner, repo string, quiet bool) {
 		Owner:  owner,
 		Branch: checkedOut,
 	}})
+}
+
+// addDefaultWorktree creates the initial worktree for a freshly-cloned bare
+// repository, trying three strategies in cascade:
+//
+//  1. Plain `worktree add <dir> <branch>` — works when the local branch
+//     already exists (the normal case after a bare clone with commits).
+//  2. `worktree add --track -b <branch> <dir> origin/<branch>` — creates a
+//     new local tracking branch when only the remote ref exists.
+//  3. `worktree add --orphan -b <branch> <dir>` — for empty repositories
+//     that have no commits on any branch; produces a worktree ready to
+//     receive the first commit. Requires git 2.42+.
+//
+// Returns a wrapped error carrying every attempt's captured stderr when all
+// three fail.
+func addDefaultWorktree(bareDir, worktreeDir, branch string) error {
+	err := gitCmdQuiet(bareDir, "worktree", "add", worktreeDir, branch)
+	if err == nil {
+		return nil
+	}
+
+	trackErr := gitCmdQuiet(bareDir, "worktree", "add", "--track", "-b", branch, worktreeDir, "origin/"+branch)
+	if trackErr == nil {
+		return nil
+	}
+
+	orphanErr := gitCmdQuiet(bareDir, "worktree", "add", "--orphan", "-b", branch, worktreeDir)
+	if orphanErr == nil {
+		return nil
+	}
+
+	return fmt.Errorf("%w (track: %w; orphan: %w)", err, trackErr, orphanErr)
 }
 
 // fallbackDefaultBranch is the branch name assumed when origin/HEAD cannot be

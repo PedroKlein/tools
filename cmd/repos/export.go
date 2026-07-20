@@ -184,8 +184,14 @@ func runImport(args []string) {
 		defaultBranch := detectDefaultBranch(gitDir)
 
 		worktreeDir := filepath.Join(repoDir, defaultBranch)
-		if err := gitCmdQuiet(gitDir, "worktree", "add", worktreeDir, defaultBranch); err != nil {
-			_ = gitCmdQuiet(gitDir, "worktree", "add", worktreeDir, "origin/"+defaultBranch)
+
+		if err := addDefaultWorktree(gitDir, worktreeDir, defaultBranch); err != nil {
+			fmt.Fprintf(os.Stderr, "  warning: worktree add for %q failed: %v\n", defaultBranch, err)
+			fmt.Fprintf(os.Stderr, "           bare repo left at %s; run: repos wt add %s\n", gitDir, defaultBranch)
+
+			cloned++
+
+			continue
 		}
 
 		_ = gitCmdQuiet(gitDir, "branch", "--set-upstream-to=origin/"+defaultBranch, defaultBranch)

@@ -265,21 +265,38 @@ func tidyRepo(repoPath string, opts TidyOptions) TidyResult {
 		})
 
 		if opts.CreateDefault {
-			worktreeDir := filepath.Join(repoPath, defaultBranch)
-			// Ensure local branch exists tracking remote
-			_ = gitCmdQuiet(bareDir, "branch", defaultBranch, "refs/remotes/origin/"+defaultBranch)
-
-			if err := gitCmdQuiet(bareDir, "worktree", "add", worktreeDir, defaultBranch); err == nil {
-				_ = gitCmdQuiet(bareDir, "branch", "--set-upstream-to=origin/"+defaultBranch, defaultBranch)
-				result.Actions = append(result.Actions, TidyAction{
-					Type:   "create_worktree",
-					Detail: fmt.Sprintf("created %s/", defaultBranch),
-				})
-			}
+			result.Actions = append(result.Actions, createDefaultWorktree(repoPath, bareDir, defaultBranch))
 		}
 	}
 
 	return result
+}
+
+// createDefaultWorktree adds the default-branch worktree during tidy. It
+// returns a create_worktree action on success or create_worktree_failed
+// (carrying the captured git stderr) on failure.
+func createDefaultWorktree(repoPath, bareDir, defaultBranch string) TidyAction {
+	worktreeDir := filepath.Join(repoPath, defaultBranch)
+	// Ensure local branch exists tracking remote (best-effort; already-exists is fine).
+	_ = gitCmdQuiet(bareDir, "branch", defaultBranch, "refs/remotes/origin/"+defaultBranch)
+
+	if err := gitCmdQuiet(bareDir, "worktree", "add", worktreeDir, defaultBranch); err != nil {
+		// Fall back to orphan worktree for empty repositories that have no
+		// commits on the default branch yet (git 2.42+).
+		if orphanErr := gitCmdQuiet(bareDir, "worktree", "add", "--orphan", "-b", defaultBranch, worktreeDir); orphanErr != nil {
+			return TidyAction{
+				Type:   "create_worktree_failed",
+				Detail: fmt.Sprintf("%s: %v (orphan fallback: %v)", defaultBranch, err, orphanErr),
+			}
+		}
+	}
+
+	_ = gitCmdQuiet(bareDir, "branch", "--set-upstream-to=origin/"+defaultBranch, defaultBranch)
+
+	return TidyAction{
+		Type:   "create_worktree",
+		Detail: fmt.Sprintf("created %s/", defaultBranch),
+	}
 }
 
 // readLocalHead reads the local HEAD symbolic ref and returns the branch name.

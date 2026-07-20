@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -269,14 +270,26 @@ func syncRepo(bareDir string) syncResult {
 	return syncResult{syncUpdated, fmt.Sprintf("%s +%s commits", branch, count)}
 }
 
-// gitCmdQuiet runs a git command without printing stdout/stderr.
+// gitCmdQuiet runs a git command without printing stdout/stderr to the parent
+// process. It captures combined output and folds it into the returned error
+// message when git exits non-zero, so callers that surface the error get a
+// useful diagnostic instead of a bare "exit status 128". Callers that discard
+// the error still see no output.
 func gitCmdQuiet(dir string, args ...string) error {
 	cmd := gitCommand(dir, args...)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
+
+	var buf bytes.Buffer
+
+	cmd.Stdout = &buf
+	cmd.Stderr = &buf
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("git %v: %w", args, err)
+		out := strings.TrimSpace(buf.String())
+		if out == "" {
+			return fmt.Errorf("git %v: %w", args, err)
+		}
+
+		return fmt.Errorf("git %v: %w: %s", args, err, out)
 	}
 
 	return nil
