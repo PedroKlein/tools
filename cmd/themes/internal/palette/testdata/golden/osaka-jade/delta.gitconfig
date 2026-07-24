@@ -1,0 +1,21 @@
+; delta theme (derived; do not edit)
+[delta]
+    syntax-theme = current
+    dark = true
+    line-numbers = true
+    side-by-side = false
+    minus-style = syntax "#241414"
+    minus-emph-style = syntax bold "#241414"
+    plus-style = syntax "#142418"
+    plus-emph-style = syntax bold "#142418"
+    zero-style = syntax
+    hunk-header-style = "#549E6A" bold
+    hunk-header-decoration-style = "#23372B" box
+    file-style = "#63B07A" bold
+    file-decoration-style = "#23372B" ul
+    commit-decoration-style = "#549E6A" box
+    line-numbers-left-style = "#627A6C"
+    line-numbers-right-style = "#627A6C"
+    line-numbers-minus-style = "#FF5345"
+    line-numbers-plus-style = "#63B07A"
+    line-numbers-zero-style = "#627A6C"

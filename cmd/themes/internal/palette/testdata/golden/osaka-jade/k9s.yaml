@@ -1,0 +1,76 @@
+# k9s skin (derived; do not edit)
+k9s:
+  body:
+    fgColor: "#C1C497"
+    bgColor: "#111C18"
+    logoColor: "#549E6A"
+  prompt:
+    fgColor: "#C1C497"
+    bgColor: "#111C18"
+    suggestColor: "#627A6C"
+  info:
+    fgColor: "#627A6C"
+    sectionColor: "#C1C497"
+  dialog:
+    fgColor: "#C1C497"
+    bgColor: "#23372B"
+    buttonFgColor: "#111C18"
+    buttonBgColor: "#549E6A"
+    buttonFocusFgColor: "#111C18"
+    buttonFocusBgColor: "#63B07A"
+    labelFgColor: "#459451"
+    fieldFgColor: "#C1C497"
+  frame:
+    border:
+      fgColor: "#23372B"
+      focusColor: "#63B07A"
+    menu:
+      fgColor: "#C1C497"
+      keyColor: "#549E6A"
+      numKeyColor: "#2DD5B7"
+    crumbs:
+      fgColor: "#C1C497"
+      bgColor: "#111C18"
+      activeColor: "#549E6A"
+    status:
+      newColor: "#63B07A"
+      modifyColor: "#459451"
+      addColor: "#63B07A"
+      pendingColor: "#8CD3CB"
+      errorColor: "#FF5345"
+      highlightColor: "#549E6A"
+      killColor: "#FF5345"
+      completedColor: "#627A6C"
+    title:
+      fgColor: "#C1C497"
+      bgColor: "#111C18"
+      highlightColor: "#459451"
+      counterColor: "#63B07A"
+      filterColor: "#2DD5B7"
+  views:
+    table:
+      fgColor: "#C1C497"
+      bgColor: "#111C18"
+      cursorFgColor: "#111C18"
+      cursorBgColor: "#23372B"
+      header:
+        fgColor: "#549E6A"
+        bgColor: "#111C18"
+        sorterColor: "#63B07A"
+    xray:
+      fgColor: "#C1C497"
+      bgColor: "#111C18"
+      cursorColor: "#23372B"
+      graphicColor: "#549E6A"
+    yaml:
+      keyColor: "#549E6A"
+      valueColor: "#C1C497"
+      colonColor: "#627A6C"
+    logs:
+      fgColor: "#C1C497"
+      bgColor: "#111C18"
+      indicator:
+        fgColor: "#549E6A"
+        bgColor: "#111C18"
+        toggleOnColor: "#63B07A"
+        toggleOffColor: "#627A6C"

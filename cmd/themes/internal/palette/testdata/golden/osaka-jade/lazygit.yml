@@ -1,0 +1,21 @@
+# lazygit theme (derived; do not edit)
+gui:
+  theme:
+    lightTheme: false
+    activeBorderColor:
+      - "#63B07A"
+      - bold
+    inactiveBorderColor:
+      - "#23372B"
+    optionsTextColor:
+      - "#8CD3CB"
+    selectedLineBgColor:
+      - "#23372B"
+    cherryPickedCommitBgColor:
+      - "#549E6A"
+    cherryPickedCommitFgColor:
+      - "#111C18"
+    unstagedChangesColor:
+      - "#FF5345"
+    defaultFgColor:
+      - "#C1C497"

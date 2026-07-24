@@ -1,0 +1,23 @@
+# television theme (derived; do not edit)
+background              = "#111C18"
+border_fg               = "#23372B"
+text_fg                 = "#C1C497"
+dimmed_text_fg          = "#627A6C"
+
+input_text_fg           = "#63B07A"
+result_count_fg         = "#549E6A"
+
+result_name_fg          = "#63B07A"
+result_line_number_fg   = "#549E6A"
+result_value_fg         = "#C1C497"
+selection_fg            = "#63B07A"
+selection_bg            = "#23372B"
+match_fg                = "#549E6A"
+
+preview_title_fg        = "#63B07A"
+
+channel_mode_fg         = "#111C18"
+channel_mode_bg         = "#549E6A"
+remote_control_mode_fg  = "#111C18"
+remote_control_mode_bg  = "#63B07A"
+send_to_channel_mode_fg = "#C1C497"

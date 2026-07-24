@@ -1,0 +1,17 @@
+# gh-dash theme (derived; do not edit)
+theme:
+  colors:
+    text:
+      primary: "#C1C497"
+      secondary: "#8CD3CB"
+      inverted: "#111C18"
+      faint: "#627A6C"
+      warning: "#459451"
+      success: "#63B07A"
+      error: "#FF5345"
+    background:
+      selected: "#23372B"
+    border:
+      primary: "#63B07A"
+      secondary: "#509475"
+      faint: "#23372B"
