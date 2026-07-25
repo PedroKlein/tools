@@ -66,13 +66,18 @@ func emitPiJSON(t *Theme, w io.Writer) error {
 		"warning":           "yellow",
 		"muted":             "muted",
 		"dim":               "muted",
-		"thinkingText":      "muted",
-		"selectedBg":        "surface1",
+		"text":              "fg",
 		"userMessageBg":     "surface0",
+		"userMessageText":   "fg",
+		"customMessageBg":   "mantle",
+		"customMessageLabel": "purple",
+		"customMessageText": "fg",
+		"selectedBg":        "surface1",
 		"toolPendingBg":     "mantle",
 		"toolSuccessBg":     "mantle",
 		"toolErrorBg":       "mantle",
 		"toolOutput":        "muted",
+		"toolTitle":         "fg",
 		"mdHeading":         "yellow",
 		"mdLink":            "cyan",
 		"mdLinkUrl":         "muted",
@@ -93,7 +98,19 @@ func emitPiJSON(t *Theme, w io.Writer) error {
 		"syntaxNumber":      s.Syntax.Number,
 		"syntaxType":        s.Syntax.Type,
 		"syntaxOperator":    s.Syntax.Operator,
-		"bashMode":          "yellow",
+		// Pi has no dedicated slots for variable/punctuation in the schema;
+		// map to sensible reference-strings from vars.
+		"syntaxVariable":    "cyan",
+		"syntaxPunctuation": "muted",
+		// Thinking ladder — dim off, warm up as level rises.
+		"thinkingOff":     "surface1",
+		"thinkingMinimal": "muted",
+		"thinkingLow":     "blue",
+		"thinkingMedium":  "accent",
+		"thinkingHigh":    "bright",
+		"thinkingXhigh":   "cyan",
+		"thinkingText":    "muted",
+		"bashMode":        "yellow",
 	}
 
 	pi := piThemeV4{

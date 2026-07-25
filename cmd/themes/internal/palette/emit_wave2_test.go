@@ -70,6 +70,42 @@ func TestEmittersWave2SmokeAgainstOsakaJade(t *testing.T) {
 		if vars["bg"] != th.Palette.Semantic.Bg {
 			t.Errorf("pi.vars.bg = %v, want %s", vars["bg"], th.Palette.Semantic.Bg)
 		}
+
+		// Regression (d1-pi-emitter): Pi's runtime rejects themes missing
+		// any of these keys with "missing required color tokens". The v4
+		// emitter was a strict subset of v3 and dropped 14 keys, silently
+		// breaking every Pi session after v4 migration.
+		colors := m["colors"].(map[string]any)
+		required := []string{
+			// v3 keys still needed
+			"accent", "border", "borderAccent", "borderMuted",
+			"success", "error", "warning", "muted", "dim",
+			"selectedBg", "userMessageBg",
+			"toolPendingBg", "toolSuccessBg", "toolErrorBg", "toolOutput",
+			"mdHeading", "mdLink", "mdLinkUrl", "mdCode",
+			"mdCodeBlock", "mdCodeBlockBorder", "mdQuote", "mdQuoteBorder",
+			"mdHr", "mdListBullet",
+			"toolDiffAdded", "toolDiffRemoved", "toolDiffContext",
+			"syntaxComment", "syntaxKeyword", "syntaxFunction",
+			"syntaxString", "syntaxNumber", "syntaxType", "syntaxOperator",
+			"bashMode",
+			// d1 additions — must be present or Pi rejects the theme
+			"text", "userMessageText",
+			"customMessageBg", "customMessageLabel", "customMessageText",
+			"toolTitle",
+			"syntaxPunctuation", "syntaxVariable",
+			"thinkingOff", "thinkingMinimal", "thinkingLow",
+			"thinkingMedium", "thinkingHigh", "thinkingXhigh",
+		}
+		var missing []string
+		for _, k := range required {
+			if _, ok := colors[k]; !ok {
+				missing = append(missing, k)
+			}
+		}
+		if len(missing) > 0 {
+			t.Errorf("pi.colors missing %d required keys: %v", len(missing), missing)
+		}
 	})
 
 	t.Run("fzf", func(t *testing.T) {
