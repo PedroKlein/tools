@@ -13,5 +13,10 @@ func init() {
 		sketchybarEmitter{},
 		aerospaceEmitter{},
 		starshipEmitter{},
+		// Wave 2: editor + shell.
+		nvimEmitter{},
+		piEmitter{},
+		fzfEmitter{},
+		zshHighlightEmitter{},
 	)
 }
