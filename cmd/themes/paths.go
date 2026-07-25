@@ -41,11 +41,23 @@ func currentPath() string {
 // CurrentThemeDir returns the absolute path to the active theme directory
 // (resolving the .current symlink). Falls back to themesRoot() if the
 // symlink is missing or broken. Exported for use from tui.go.
+//
+// v4 layout: `.current` -> XDG `current` -> <theme>/derived (compat
+// chain). EvalSymlinks resolves to `<theme>/derived`, but callers who
+// want to read `<theme>/theme.json` (LoadPaletteColors, TUI styles,
+// etc.) need the parent — the theme root. Normalize here so every
+// caller gets a consistent path regardless of internal symlink shape.
 func CurrentThemeDir() string {
 	p := currentPath()
 	resolved, err := filepath.EvalSymlinks(p)
 	if err != nil {
 		return p // caller can still stat and get an error; better than ""
+	}
+	// If the chain lands on <theme>/derived (v4 XDG layout), walk up
+	// to <theme>. On v3 installs the chain lands directly on <theme>
+	// so this is a no-op.
+	if filepath.Base(resolved) == "derived" {
+		return filepath.Dir(resolved)
 	}
 	return resolved
 }
