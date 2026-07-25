@@ -6,8 +6,7 @@ import (
 )
 
 // This file holds the small helpers used by the default-fill logic in
-// loader.go. Kept separate from color.go so v3 emitters that still
-// import color.go don't pick up v4-only helpers by accident.
+// loader.go.
 
 // trimFloat formats a float using Python-style repr: trailing zeros
 // stripped, but at least one decimal for whole numbers.

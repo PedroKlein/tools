@@ -28,10 +28,7 @@ import (
 // Escape returns to the picker WITHOUT reverting; changes persist. This
 // matches the picker's own "commit-on-change" model.
 func runSettingsInteractive() {
-	s, err := LoadState()
-	if err != nil {
-		dieMsg(err.Error(), ExitError)
-	}
+	s := activeState()
 	if s.Theme == "" {
 		dieMsg("no theme active", ExitNotFound)
 	}

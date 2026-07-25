@@ -18,8 +18,8 @@ func runDerive(args []string) {
 	var name string
 	switch len(args) {
 	case 0:
-		s, err := LoadState()
-		if err != nil || s.Theme == "" {
+		s := activeState()
+		if s.Theme == "" {
 			dieMsg("no active theme; usage: themes derive <name>", ExitError)
 		}
 		name = s.Theme

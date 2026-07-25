@@ -42,11 +42,7 @@ func runTUIWith(focusTheme string) {
 		fmt.Fprintln(os.Stderr, "no themes installed; run: themes install <url>")
 		os.Exit(ExitNotFound)
 	}
-	s, err := LoadState()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "themes:", err)
-		os.Exit(ExitError)
-	}
+	s := activeState()
 	initial := 0
 	target := focusTheme
 	if target == "" {
@@ -236,7 +232,7 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "W":
 		// Cycle to the next wallpaper for the active theme without
 		// opening the picker. Fast repeat-friendly.
-		if s, err := LoadState(); err == nil && s.Theme != "" {
+		if s := activeState(); s.Theme != "" {
 			_ = CycleWallpaper(s.Theme)
 		}
 		return m, nil

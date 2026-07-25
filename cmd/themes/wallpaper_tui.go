@@ -21,10 +21,7 @@ import (
 // Kitty-graphics (icat) works only in Ghostty/kitty. If neither is present,
 // the picker still functions as a scrollable filename list.
 func runWallpaperInteractive() {
-	s, err := LoadState()
-	if err != nil {
-		dieMsg(err.Error(), ExitError)
-	}
+	s := activeState()
 	if s.Theme == "" {
 		dieMsg("no theme active; run: themes set <name>", ExitNotFound)
 	}
