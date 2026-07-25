@@ -1,0 +1,112 @@
+{
+  "$schema": "https://raw.githubusercontent.com/PedroKlein/tools/main/cmd/themes/schema/theme.schema.json",
+
+  "name": "osaka-jade",
+  "displayName": "Osaka Jade",
+  "author": "Pedro Klein",
+  "upstream": "https://github.com/Justikun/omarchy-osaka-jade-theme",
+  "appearance": "dark",
+  "description": "Calm forested jade tones — reference theme for themes v4.",
+
+  "palette": {
+    "ansi": [
+      "#23372B", "#FF5345", "#549E6A", "#459451",
+      "#509475", "#D2689C", "#2DD5B7", "#F6F5DD",
+      "#53685B", "#DB9F9C", "#63B07A", "#E5C736",
+      "#ACD4CF", "#75BBB3", "#8CD3CB", "#9EEBB3"
+    ],
+
+    "semantic": {
+      "bg":            "#111C18",
+      "fg":            "#C1C497",
+      "muted":         "#627A6C",
+      "accent":        "#549E6A",
+      "accent2":       "#E5C736",
+      "error":         "#FF5345",
+      "warning":       "#E5C736",
+      "ok":            "#63B07A",
+      "info":          "#7AA2F7",
+      "selection_bg":  "#23372B",
+      "selection_fg":  "#C1C497",
+      "cursor":        "#D7C995",
+      "border":        "#509475",
+      "bg_alt":        "#0D1512",
+      "fg_dim":        "#435F50",
+
+      "git": {
+        "added":    "#63B07A",
+        "removed":  "#FF5345",
+        "modified": "#E5C736"
+      },
+
+      "syntax": {
+        "keyword":  "#BB9AF7",
+        "string":   "#63B07A",
+        "number":   "#2DD5B7",
+        "comment":  "#627A6C",
+        "type":     "#549E6A",
+        "function": "#E5C736",
+        "operator": "#C1C497"
+      }
+    },
+
+    "gradients": {
+      "temp":    ["#BFD99A", "#E1B55E", "#DBB05C"],
+      "cpu":     ["#5F8C86", "#629C89", "#76AD98"],
+      "memory":  ["#549E6A", "#E5C736", "#FF5345"],
+      "network": ["#549E6A", "#7AA2F7", "#BB9AF7"]
+    }
+  },
+
+  "typography": {
+    "family":     "MonaspiceNe Nerd Font",
+    "size":       14,
+    "weight":     "regular",
+    "ligatures":  true,
+    "lineHeight": 1.2
+  },
+
+  "effects": {
+    "opacity": 0.85,
+    "blur":    20,
+    "cursor":  { "shape": "block", "blink": false },
+    "shadow":  { "enabled": true, "radius": 10, "opacityPct": 40, "offset": [2, 2] }
+  },
+
+  "macos": {
+    "appearance": "dark",
+    "accent":     "green",
+    "highlight":  "#549E6A"
+  },
+
+  "wallpapers": {
+    "default":   "osaka-jade-bg.jpg",
+    "placement": "fill",
+    "list": [
+      { "file": "osaka-jade-bg.jpg" },
+      { "file": "osaka-jade-bg-2.jpg" }
+    ]
+  },
+
+  "hints": {
+    "nvim": {
+      "colorscheme": "bamboo",
+      "fallback":    "carbonfox"
+    },
+    "aerospace": {
+      "gaps": { "inner": 6, "outer": 12 }
+    },
+    "sketchybar": {
+      "barHeight":    28,
+      "cornerRadius": 6
+    },
+    "pi": {
+      "notification_style": "banner"
+    }
+  },
+
+  "overrides": {
+    "ghostty":   "cursor-invert-fg-bg = true\n",
+    "nvim_path": "overrides/nvim.lua"
+  }
+}
