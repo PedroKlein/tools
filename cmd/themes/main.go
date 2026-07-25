@@ -34,6 +34,8 @@ func main() {
 		runWallpaper(cmdArgs)
 	case "install":
 		runInstall(cmdArgs)
+	case "import":
+		runImport(cmdArgs)
 	case "derive":
 		runDerive(cmdArgs)
 	case "validate":
@@ -75,6 +77,7 @@ Usage:
   themes wallpaper next         Cycle to next wallpaper for active themes
   themes wallpaper random       Random wallpaper from the active themes
   themes install <url|name>     Import an Omarchy-marketplace bundle
+  themes import <url|path>      (same as install; both are v4 shims for /theme-import)
   themes derive <name>          Regenerate the 14 derived files (13 apps + .macos.json)
   themes validate <name|path>   Validate theme.json against the v1 schema
 
