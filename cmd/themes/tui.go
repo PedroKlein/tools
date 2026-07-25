@@ -188,17 +188,16 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
-		// Quit without changes; revert to startedAt if we've been live-applying.
-		if m.liveApply && m.themes[m.cursor].Name != m.startedAt {
-			_ = Set(m.startedAt, SetOptions{Commit: false})
-		}
+		// Quit without changes; revert to startedAt if state has drifted
+		// from the pre-TUI theme for any reason (live-preview, live-apply
+		// toggled off after preview, drift, etc.). Always compare current
+		// state to startedAt — NOT the cursor position, which can differ
+		// from state after scroll-around.
+		m.revertIfNeeded()
 		m.quitting = true
 		return m, tea.Quit
 	case "esc":
-		// Revert.
-		if m.themes[m.cursor].Name != m.startedAt {
-			_ = Set(m.startedAt, SetOptions{Commit: false})
-		}
+		m.revertIfNeeded()
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
@@ -250,8 +249,28 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {
-	m.cursor += delta
+// revertIfNeeded restores the pre-TUI theme when live-preview has left
+// state pointing at anything other than startedAt. Compares CURRENT
+// STATE (not cursor position) so scrolling around then landing back
+// on startedAt still triggers the revert if the debouncer fired for an
+// intermediate theme.
+func (m *pickerModel) revertIfNeeded() {
+	if m.startedAt == "" {
+		return
+	}
+	s := activeState()
+	if s.Theme == "" || s.Theme == m.startedAt {
+		return
+	}
+	// Cancel any pending debounced live-apply so it doesn't re-set
+	// state to the previewed theme AFTER we revert.
+	if m.pending != nil {
+		m.pending.cancel()
+	}
+	_ = Set(m.startedAt, SetOptions{Commit: false})
+}
+
+func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {	m.cursor += delta
 	if m.cursor < 0 {
 		m.cursor = 0
 	}

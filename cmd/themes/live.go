@@ -48,6 +48,19 @@ func (d *debouncer) schedule(name string) tea.Cmd {
 	}
 }
 
+// cancel stops any pending timer and clears the pending theme name so
+// a fired-but-not-yet-processed schedule doesn't overwrite state after
+// a caller-initiated revert. Safe to call when nothing is pending.
+func (d *debouncer) cancel() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.timer != nil {
+		d.timer.Stop()
+		d.timer = nil
+	}
+	d.last = ""
+}
+
 // maybeSchedule is called from the model on cursor moves. If live-apply
 // is on and the highlighted theme differs from the on-disk active theme,
 // schedule a debounced Set().
