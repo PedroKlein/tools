@@ -23,5 +23,10 @@ func init() {
 		batEmitter{},
 		lazygitEmitter{},
 		ghDashEmitter{},
+		// Wave 4: TUI theme apps.
+		k9sEmitter{},
+		televisionEmitter{},
+		btopEmitter{},
+		opencodeEmitter{},
 	)
 }
