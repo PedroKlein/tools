@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -70,14 +72,21 @@ func (m *installPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if strings.TrimSpace(m.input) == "" {
 				return m, nil
 			}
-			// v4: install is superseded by /theme-import (see P4). The
-			// TUI pane no longer clones + parses upstream; it displays a
-			// pointer to the slash command instead.
+			// v4: this pane no longer clones + parses upstream. Instead,
+			// copy the URL to the clipboard (macOS pbcopy, silent on other
+			// platforms) and quit so the picker can print a pointer to
+			// /theme-import.
 			m.installing = false
 			return m, func() tea.Msg {
 				url := strings.TrimSpace(m.input)
+				// Best-effort clipboard copy.
+				if runtime.GOOS == "darwin" {
+					cmd := exec.Command("pbcopy")
+					cmd.Stdin = strings.NewReader(url)
+					_ = cmd.Run()
+				}
 				return installResultMsg{name: "", err: fmt.Errorf(
-					"install superseded; run /theme-import %s in Pi", url)}
+					"install superseded by /theme-import. URL copied to clipboard\n         In Pi, run: /theme-import %s", url)}
 			}
 		case tea.KeyBackspace:
 			if m.cursor > 0 {
@@ -124,7 +133,7 @@ func (m *installPromptModel) View() string {
 	// character where cursor is.
 	var body string
 	if m.installing {
-		body = "cloning\u2026"
+		body = "copying URL to clipboard\u2026"
 	} else {
 		before := m.input[:m.cursor]
 		after := ""
@@ -146,7 +155,7 @@ func (m *installPromptModel) View() string {
 
 	hint := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#627A6C")).
-		Render("Paste any git URL, e.g. https://github.com/user/omarchy-<name>-theme")
+		Render("Paste any theme URL — v4 will copy it and prompt /theme-import in Pi")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, "", inputLine, "", hint, "", help)
 }
