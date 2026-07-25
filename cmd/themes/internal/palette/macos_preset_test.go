@@ -81,11 +81,11 @@ func TestHueDistanceWraps(t *testing.T) {
 	}{
 		{0, 0, 0},
 		{10, 20, 10},
-		{350, 10, 20},   // wraps
-		{359, 1, 2},     // wraps
-		{180, 0, 180},   // exact half
-		{200, 20, 180},  // slightly past half
-		{300, 60, 120},  // symmetric
+		{350, 10, 20},  // wraps
+		{359, 1, 2},    // wraps
+		{180, 0, 180},  // exact half
+		{200, 20, 180}, // slightly past half
+		{300, 60, 120}, // symmetric
 	}
 	for _, tt := range tests {
 		if got := hueDistance(tt.a, tt.b); got != tt.want {

@@ -2,8 +2,8 @@
 //
 // State lives at $XDG_STATE_HOME/themes/ (falling back to
 // ~/.local/state/themes/) so the repo has zero runtime churn:
-//   * state.json  — active theme, per-theme wallpaper, changed_at
-//   * current     — symlink to <active-theme-dir>/derived/
+//   - state.json  — active theme, per-theme wallpaper, changed_at
+//   - current     — symlink to <active-theme-dir>/derived/
 //
 // The main-package v3 State type still exists in cmd/themes/state.go
 // for backwards-compat reads on machines mid-migration; this package

@@ -9,7 +9,8 @@ import (
 )
 
 // updateGoldens rewrites golden files when set. Enable with:
-//   go test ./cmd/themes/internal/palette/ -run TestGoldenAllEmitters -update
+//
+//	go test ./cmd/themes/internal/palette/ -run TestGoldenAllEmitters -update
 var updateGoldens = flag.Bool("update", false, "rewrite golden emitter outputs under testdata/")
 
 // TestGoldenAllEmitters runs every registered v4 emitter against the

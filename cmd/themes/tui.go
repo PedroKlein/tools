@@ -15,13 +15,14 @@ import (
 // runTUI is the interactive theme picker.
 //
 // Layout:
-//   ┌ Themes (n) ────────────┐ ┌ Preview ─────────────────────────┐
-//   │ ▸ osaka-jade           │ │ ██ ██ ██ ██ ██ ██ ██ ██          │
-//   │   tokyonight           │ │ ██ ██ ██ ██ ██ ██ ██ ██          │
-//   │   ...                  │ │                                  │
-//   │                        │ │ Author: from CREDITS             │
-//   └────────────────────────┘ └──────────────────────────────────┘
-//    ↑↓ navigate  ⏎ confirm  esc revert  L toggle-live  q quit
+//
+//	┌ Themes (n) ────────────┐ ┌ Preview ─────────────────────────┐
+//	│ ▸ osaka-jade           │ │ ██ ██ ██ ██ ██ ██ ██ ██          │
+//	│   tokyonight           │ │ ██ ██ ██ ██ ██ ██ ██ ██          │
+//	│   ...                  │ │                                  │
+//	│                        │ │ Author: from CREDITS             │
+//	└────────────────────────┘ └──────────────────────────────────┘
+//	 ↑↓ navigate  ⏎ confirm  esc revert  L toggle-live  q quit
 //
 // Live-apply on scroll (P3.5) is added in a follow-up commit.
 func runTUI(_ []string) {
@@ -371,4 +372,3 @@ func loadShort(path string) string {
 // -- styles ---------------------------------------------------------------
 // Styles are now built per-model via reloadStyles(); the previous package-level
 // vars were removed so the TUI always follows the currently-active theme.
-

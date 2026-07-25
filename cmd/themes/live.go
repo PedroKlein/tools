@@ -68,10 +68,13 @@ func (m *pickerModel) maybeSchedule() (tea.Model, tea.Cmd) {
 // pi UI. On commit (Enter), Commit=true triggers every hook.
 //
 // Kept hooks (fire on scroll):
-//   osc-broadcast, pi, ghostty, tmux, sketchybar, nvim, bat, delta,
-//   fzf, zsh-highlight, wallpaper
+//
+//	osc-broadcast, pi, ghostty, tmux, sketchybar, nvim, bat, delta,
+//	fzf, zsh-highlight, wallpaper
+//
 // Skipped (commit-only):
-//   opencode, btop, k9s, television, lazygit, gh-dash, macos-system
+//
+//	opencode, btop, k9s, television, lazygit, gh-dash, macos-system
 //
 // User asked for preview=commit but hit UX friction from slow scroll; this
 // is the negotiated compromise.
@@ -86,8 +89,8 @@ func (m *pickerModel) doLiveApply(name string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	_ = Set(name, SetOptions{
-		SkipHooks:      liveSkipHooks,
-		Commit: false,
+		SkipHooks: liveSkipHooks,
+		Commit:    false,
 	})
 	// Rebuild the TUI's own styles so the picker follows the theme as we
 	// scroll. Reads .current/palette.toml which was just updated by Set().

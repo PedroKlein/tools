@@ -29,9 +29,10 @@ const schemaEmbedPath = "schema/theme.schema.json"
 // each anchored by JSON Pointer path.
 //
 // Exit codes:
-//   0            valid
-//   ExitError    invalid, unreadable, or malformed
-//   ExitNotFound theme not installed / path missing
+//
+//	0            valid
+//	ExitError    invalid, unreadable, or malformed
+//	ExitNotFound theme not installed / path missing
 func runValidate(args []string) {
 	if len(args) != 1 {
 		dieMsg("usage: themes validate <name-or-path>", ExitError)

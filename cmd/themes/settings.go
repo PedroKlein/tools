@@ -17,9 +17,9 @@ import (
 // runSettingsInteractive opens the per-current-theme settings sub-TUI.
 //
 // Adjustable knobs (all persist to the theme's palette.toml [meta] block):
-//   • opacity   0.5-1.0  step 0.05  → ghostty background-opacity
-//   • blur      0-30     step 2     → ghostty background-blur
-//   • mode      auto/light/dark     → .macos.json mode (overrides YIQ detection)
+//   - opacity   0.5-1.0  step 0.05  → ghostty background-opacity
+//   - blur      0-30     step 2     → ghostty background-blur
+//   - mode      auto/light/dark     → .macos.json mode (overrides YIQ detection)
 //
 // Live-apply: every change writes the new [meta] value, re-derives the
 // theme, and runs the reload orchestrator so ghostty picks up the new

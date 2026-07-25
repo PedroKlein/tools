@@ -2,14 +2,14 @@
 //
 // Two hook categories:
 //
-//   1. Inline hooks (declared in this package as Go code): fast operations
-//      that don't need a subprocess. Signals, direct commands, JSON edits.
-//      Consolidated here to eliminate the .sh dust bunny of one-liner
-//      hooks that used to live under configs-shared/.config/themes/.hooks/.
+//  1. Inline hooks (declared in this package as Go code): fast operations
+//     that don't need a subprocess. Signals, direct commands, JSON edits.
+//     Consolidated here to eliminate the .sh dust bunny of one-liner
+//     hooks that used to live under configs-shared/.config/themes/.hooks/.
 //
-//   2. External hooks (.sh files): non-trivial logic that benefits from
-//      shell idioms (bash arrays, tmux commands, OSC broadcast bit-fiddling,
-//      complex fallback chains). Discovered by scanning the .hooks/ dir.
+//  2. External hooks (.sh files): non-trivial logic that benefits from
+//     shell idioms (bash arrays, tmux commands, OSC broadcast bit-fiddling,
+//     complex fallback chains). Discovered by scanning the .hooks/ dir.
 //
 // Callers invoke RunAll(themeDir, opts) which runs every enabled hook in
 // parallel via goroutines. Per-hook errors are logged but never fatal to

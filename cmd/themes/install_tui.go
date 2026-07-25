@@ -15,10 +15,10 @@ import (
 // the theme, and re-launches the picker with the new entry in focus.
 //
 // Prompted flow (post-picker-quit dispatch, same tunnel as `w` wallpaper):
-//   1. Show "Install from URL:" input at the top of the alt-screen.
-//   2. User types URL or paste-injects it. Enter clones + derives.
-//   3. On success, re-launch the picker with cursor on the new theme.
-//      On failure, print the error and return to the shell.
+//  1. Show "Install from URL:" input at the top of the alt-screen.
+//  2. User types URL or paste-injects it. Enter clones + derives.
+//  3. On success, re-launch the picker with cursor on the new theme.
+//     On failure, print the error and return to the shell.
 //
 // Uses a minimal handwritten textinput rather than the charm/bubbles
 // package to keep the tools repo dep list at Charm-minimum.
@@ -45,7 +45,7 @@ func runInstallInteractive() string {
 // installPromptModel is a minimal single-line text input.
 type installPromptModel struct {
 	input      string
-	cursor     int    // insert position within input
+	cursor     int // insert position within input
 	err        error
 	installed  string // theme name after successful install
 	cancelled  bool

@@ -28,18 +28,18 @@ func emitFzfSemantic(t *Theme, w io.Writer) error {
 		"--color=fg:%s,bg:-1,hl:%s,fg+:%s,bg+:%s,hl+:%s,"+
 			"info:%s,prompt:%s,pointer:%s,marker:%s,spinner:%s,header:%s,"+
 			"border:%s",
-		s.Fg,        // normal fg
-		s.Accent,    // hl
-		s.Fg,        // fg+
+		s.Fg,          // normal fg
+		s.Accent,      // hl
+		s.Fg,          // fg+
 		s.SelectionBg, // bg+
-		s.Accent2,   // hl+
-		s.Muted,     // info
-		s.Accent,    // prompt
-		s.Accent2,   // pointer
-		s.Warning,   // marker
-		s.Accent,    // spinner
-		s.Info,      // header
-		s.Border,    // border
+		s.Accent2,     // hl+
+		s.Muted,       // info
+		s.Accent,      // prompt
+		s.Accent2,     // pointer
+		s.Warning,     // marker
+		s.Accent,      // spinner
+		s.Info,        // header
+		s.Border,      // border
 	)
 	fmt.Fprintf(w, "export FZF_DEFAULT_OPTS_COLORS=%q\n", opts)
 	return nil

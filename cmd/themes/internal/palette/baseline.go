@@ -14,7 +14,8 @@ import (
 // scaffolding for one app.
 //
 // Convention:
-//   internal/palette/baselines/<app>.tmpl
+//
+//	internal/palette/baselines/<app>.tmpl
 //
 // Where <app> matches the Emitter.App field in emit.go / the new
 // v4 emitter registry. Every baseline is a valid text/template — most
