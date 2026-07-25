@@ -164,3 +164,56 @@ func TestStaleReloadHonorsXDGConfigHome(t *testing.T) {
 		t.Fatal("XDG install: reload NOT flagged stale after .current moved to another theme")
 	}
 }
+
+// TestStaleReloadFollowsV4CompatChain covers the P8 regression: after the
+// v4 migration ~/.config/themes/.current is a symlink to
+// ~/.local/state/themes/current which is itself a symlink to
+// <themes>/<name>/derived. A single-hop os.Readlink returns the literal
+// string "current" and makes EVERY swap look stale, silently skipping
+// all reload hooks so nothing visibly changes on theme switch.
+func TestStaleReloadFollowsV4CompatChain(t *testing.T) {
+	tmp := t.TempDir()
+	os.Setenv("XDG_CONFIG_HOME", tmp)
+	defer os.Unsetenv("XDG_CONFIG_HOME")
+
+	themesDir := filepath.Join(tmp, "themes")
+	osakaDerived := filepath.Join(themesDir, "osaka-jade", "derived")
+	if err := os.MkdirAll(osakaDerived, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stateDir := filepath.Join(tmp, "xdg-state", "themes")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// XDG current -> <theme>/derived (the actual v4 target).
+	xdgCurrent := filepath.Join(stateDir, "current")
+	if err := os.Symlink(osakaDerived, xdgCurrent); err != nil {
+		t.Fatal(err)
+	}
+	// Compat symlink: ~/.config/themes/.current -> XDG current.
+	if err := os.Symlink(xdgCurrent, filepath.Join(themesDir, ".current")); err != nil {
+		t.Fatal(err)
+	}
+
+	if isStaleReload(filepath.Join(themesDir, "osaka-jade")) {
+		t.Fatal("v4 compat chain: reload for osaka-jade flagged stale despite .current chain resolving to osaka-jade")
+	}
+	// Also accept themeDir as the derived subdir (some call sites pass
+	// that in).
+	if isStaleReload(osakaDerived) {
+		t.Fatal("v4 compat chain: reload for osaka-jade/derived flagged stale")
+	}
+
+	// Simulate a supersede: repoint the XDG current at a different theme.
+	tokyoDerived := filepath.Join(themesDir, "tokyonight", "derived")
+	if err := os.MkdirAll(tokyoDerived, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.Remove(xdgCurrent)
+	if err := os.Symlink(tokyoDerived, xdgCurrent); err != nil {
+		t.Fatal(err)
+	}
+	if !isStaleReload(filepath.Join(themesDir, "osaka-jade")) {
+		t.Fatal("v4 compat chain: reload for osaka-jade NOT flagged stale after supersede to tokyonight")
+	}
+}
