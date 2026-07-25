@@ -9,8 +9,9 @@ import (
 // EmitFunc renders one derived file for a theme.
 type EmitFunc func(w io.Writer, p *Palette) error
 
-// Emitter is one entry in the derive pipeline.
-type Emitter struct {
+// EmitterV3 is one entry in the v3 derive pipeline. Kept alongside
+// the v4 Emitter interface (emitter.go) until P1.11 deletes v3.
+type EmitterV3 struct {
 	// App is a short label for logs/tests (e.g. "ghostty").
 	App string
 	// Filename is the target file basename inside the theme dir.
@@ -19,10 +20,10 @@ type Emitter struct {
 	Emit EmitFunc
 }
 
-// Emitters is the ordered list of all 13 derived files. Order matches the
-// original Python theme-derive and is preserved to keep any log output
-// stable across the Python→Go migration.
-var Emitters = []Emitter{
+// Emitters is the ordered list of all 13 derived files (v3). Order
+// matches the original Python theme-derive and is preserved to keep
+// any log output stable across the Python→Go migration.
+var Emitters = []EmitterV3{
 	{"ghostty", "ghostty.conf", EmitGhostty},
 	{"tmux", "tmux.conf", EmitTmux},
 	{"starship", "starship.toml", EmitStarship},
