@@ -38,9 +38,20 @@ func ListThemes() ([]ThemeInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	activeName := ""
-	if target, err := os.Readlink(currentPath()); err == nil {
-		activeName = filepath.Base(target)
+	activeName := activeState().Theme
+	if activeName == "" {
+		// Last-resort: read the compat symlink target. On v3 installs this
+		// resolves to <themesRoot>/<name>; on v4 fresh installs XDG state is
+		// authoritative and this branch is unused.
+		if target, err := os.Readlink(currentPath()); err == nil {
+			activeName = filepath.Base(target)
+			// Guard against the compat pattern `~/.config/themes/.current ->
+			// ~/.local/state/themes/current` which would land activeName as
+			// literal "current".
+			if activeName == "current" || activeName == ".current" {
+				activeName = ""
+			}
+		}
 	}
 	var themes []ThemeInfo
 	for _, e := range entries {

@@ -8,6 +8,29 @@ import (
 	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
+// activeState returns the currently-active theme record, preferring XDG
+// state (v4) and falling back to the v3 .state.json for machines
+// mid-migration. Returns a zero-value State (empty Theme) when nothing
+// is recorded, never an error — callers decide how to handle empty.
+//
+// Fixes the S-11 read-path gap: runCurrent, runList's active-theme
+// marker, and runWallpaper sub-cases previously read only v3, so post-
+// migration they silently reported the wrong theme.
+func activeState() xdgstate.State {
+	if s, err := xdgstate.Load(); err == nil && s != nil && s.Theme != "" {
+		return *s
+	}
+	if ls, err := LoadState(); err == nil {
+		return xdgstate.State{
+			Theme:            ls.Theme,
+			Wallpaper:        ls.Wallpaper,
+			WallpaperByTheme: ls.WallpaperByTheme,
+			ChangedAt:        ls.ChangedAt,
+		}
+	}
+	return xdgstate.State{}
+}
+
 // runList — "themes list [--json]".
 func runList(_ []string) {
 	themes, err := ListThemes()
@@ -33,10 +56,7 @@ func runList(_ []string) {
 
 // runCurrent — "themes current [--json]".
 func runCurrent(_ []string) {
-	s, err := LoadState()
-	if err != nil {
-		dieMsg(fmt.Sprintf("state load failed: %v", err), ExitError)
-	}
+	s := activeState()
 	if jsonOutput {
 		writeJSON(map[string]any{
 			"theme":      s.Theme,
@@ -86,14 +106,7 @@ func runSet(args []string) {
 // firing hooks so the derived/ dir is fresh even after a `git checkout`
 // on a clone that doesn't have generated files.
 func runApply(_ []string) {
-	var themeName string
-
-	if s, err := xdgstate.Load(); err == nil && s != nil && s.Theme != "" {
-		themeName = s.Theme
-	} else if ls, err := LoadState(); err == nil && ls.Theme != "" {
-		// v3 state fallback for machines mid-migration.
-		themeName = ls.Theme
-	}
+	themeName := activeState().Theme
 
 	if themeName != "" && !dirExists(themeDir(themeName)) {
 		fmt.Fprintf(os.Stderr, "themes apply: recorded theme %q not installed; falling back to osaka-jade\n", themeName)
@@ -139,10 +152,7 @@ func runWallpaper(args []string) {
 	}
 	switch args[0] {
 	case "list":
-		s, err := LoadState()
-		if err != nil {
-			dieMsg(err.Error(), ExitError)
-		}
+		s := activeState()
 		list, err := WallpaperList(s.Theme)
 		if err != nil {
 			dieMsg(err.Error(), ExitError)
@@ -167,10 +177,7 @@ func runWallpaper(args []string) {
 			dieMsg(err.Error(), ExitError)
 		}
 	case "random":
-		s, err := LoadState()
-		if err != nil {
-			dieMsg(err.Error(), ExitError)
-		}
+		s := activeState()
 		pick := RandomWallpaperFor(s.Theme)
 		if pick == "" {
 			dieMsg("no wallpapers for "+s.Theme, ExitNotFound)
@@ -185,10 +192,7 @@ func runWallpaper(args []string) {
 		// Cycle to the wallpaper after the currently-active one. Wraps at
 		// the end of the list. Both `next` and `--next` accepted; pi's
 		// `/theme cycle-wallpaper` uses `--next`.
-		s, err := LoadState()
-		if err != nil {
-			dieMsg(err.Error(), ExitError)
-		}
+		s := activeState()
 		if s.Theme == "" {
 			dieMsg("no theme active", ExitNotFound)
 		}
@@ -196,7 +200,8 @@ func runWallpaper(args []string) {
 			dieMsg(err.Error(), ExitError)
 		}
 		if !jsonOutput {
-			if st, err := LoadState(); err == nil {
+			st := activeState()
+			if st.Wallpaper != "" {
 				fmt.Println(st.Wallpaper)
 			}
 		}
