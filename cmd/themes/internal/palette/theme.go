@@ -2,14 +2,7 @@ package palette
 
 import "path/filepath"
 
-// This file defines the theme.json v4 domain type. It coexists with the
-// v3 Palette struct in palette.go until P1.11 deletes the v3 parser.
-//
-// Naming note: the P1.1 acceptance criterion asks for `Load(path string)
-// (*Theme, error)`. Because the v3 code still exports `Load(themeDir
-// string) (*Palette, error)`, the v4 loader is exported as `Load`
-// for the duration of the port and will be renamed to `Load` in P1.11
-// when the v3 parser is deleted.
+// This file defines the theme.json v4 domain type.
 
 // Theme is the fully-hydrated, default-filled representation of a v4
 // theme.json file. Every field has a defined value after Load:
@@ -77,10 +70,6 @@ type Theme struct {
 
 // Colors is the top-level `palette` block from theme.json. It holds the
 // ANSI 16, the semantic slots, and optional btop gradients.
-//
-// (Named Colors, not Palette, because the package already has a v3
-// Palette type. v3 Palette will be deleted in P1.11 at which point this
-// could be renamed to Palette; keeping Colors is fine too.)
 type Colors struct {
 	// Ansi is the 16-color ANSI palette in fixed order:
 	// [black, red, green, yellow, blue, magenta, cyan, white,

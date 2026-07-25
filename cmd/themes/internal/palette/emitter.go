@@ -8,9 +8,6 @@ import (
 
 // Emitter is one entry in the v4 derive pipeline. Each emitter produces
 // exactly one derived file for one app.
-//
-// The v3 EmitterV3 struct (emit.go) uses the same name space with a
-// distinct name and is deleted in P1.11.
 type Emitter interface {
 	// App returns the short name (e.g. "ghostty"). Matches the baseline
 	// filename and hints/overrides lookup key.

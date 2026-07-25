@@ -5,13 +5,9 @@
 //   * state.json  — active theme, per-theme wallpaper, changed_at
 //   * current     — symlink to <active-theme-dir>/derived/
 //
-// This replaces the v3 layout (~/.config/themes/.state.json +
-// ~/.config/themes/.current), moving mutable state out of the
-// dotfiles source tree.
-//
-// The v3 cmd/themes/state.go type still exists during the P3
-// transition; P3.2 migrates cmd_set.go and derive.go to use this
-// package. See docs/plans/theme-switcher-v4.md P3.
+// The main-package v3 State type still exists in cmd/themes/state.go
+// for backwards-compat reads on machines mid-migration; this package
+// is authoritative for all writes and v4 reads.
 package state
 
 import (

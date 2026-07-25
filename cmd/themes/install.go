@@ -30,10 +30,3 @@ func runImportShim(subcmd string, args []string) {
 		"  See:  docs/plans/theme-switcher-v4.md P4")
 	os.Exit(ExitError)
 }
-
-// runInstallDerive is a stub kept only so callers referencing it still
-// compile. P4 removes the callsite entirely.
-func runInstallDerive(themeAbsDir string) error {
-	_ = themeAbsDir
-	return fmt.Errorf("themes install has been superseded; run /theme-import in Pi")
-}

@@ -23,9 +23,6 @@ import (
 //   - t.Dir is absolute
 //   - t.Unknown contains every top-level key the schema did not define
 //     (empty map when there are none)
-//
-// Naming note: exported as Load instead of Load because v3's Load
-// still exists in palette.go. Renamed to Load in P1.11.
 func Load(path string) (*Theme, error) {
 	filePath, dir, err := resolveThemePaths(path)
 	if err != nil {

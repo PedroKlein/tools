@@ -1,9 +1,8 @@
 package palette
 
 // registry.go — one central place to build the EmittersV4 slice.
-// Populated additively as waves land. Each wave's init() appends its
-// emitters; the final order matches the derive pipeline in emit.go
-// for v3-parity logging.
+// Each wave's init() appends its emitters; final order matches the
+// derive pipeline documented in docs/themes.md.
 
 func init() {
 	// Wave 1: instant hot-reload apps.
