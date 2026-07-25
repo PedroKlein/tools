@@ -1,0 +1,11 @@
+# gh-dash baseline — theme-independent dashboard layout.
+# The semantic block below appends `theme.ui.<key>` entries with hex
+# values.
+
+pager:
+  diff: delta
+prSections:
+  - title: My Pull Requests
+    filters: is:open author:@me
+  - title: Needs Review
+    filters: is:open review-requested:@me

@@ -1,0 +1,19 @@
+# tmux baseline — theme-independent scaffolding.
+# The semantic block below appends status bg/fg, window-status-current
+# accent, pane-border colors, and message-style. `default` values here
+# read the terminal's current colors so this file is safe to source
+# even without a semantic block.
+
+# Status bar layout.
+set -g status-position top
+set -g status-interval 5
+set -g status-left-length 60
+set -g status-right-length 100
+
+# Panes.
+set -g pane-border-status bottom
+set -g pane-border-style default
+set -g pane-active-border-style default
+
+# Window tabs.
+set -g window-status-separator " "

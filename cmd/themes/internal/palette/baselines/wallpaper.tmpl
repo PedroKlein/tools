@@ -1,0 +1,16 @@
+# wallpaper baseline — the wallpaper "emitter" is a resolver, not a
+# file emit. This template documents the resolver's inputs so it lives
+# alongside the other 18 baselines and shows up in the same wave.
+#
+# Resolver signature:
+#   ResolveWallpaper(t *Theme, override string) (absolute path, error)
+#
+# Layered lookup:
+#   1. If `override` is non-empty and exists on disk, use it.
+#   2. If state.json records a per-theme wallpaper for t.Name, use that.
+#   3. Else t.Wallpapers.Default (resolved against t.Dir/backgrounds/).
+#   4. Else first file listed in t.Wallpapers.List.
+#   5. Else first .jpg/.png in t.Dir/backgrounds/.
+#
+# The macos-system.sh and wallpaper.sh hooks call the resolver at swap
+# time. See docs/plans/theme-switcher-v4.md phase P3.

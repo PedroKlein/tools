@@ -1,0 +1,12 @@
+-- nvim baseline — theme-independent boot scaffolding.
+-- The semantic block below sets `vim.g.<theme>_config`, calls the
+-- colorscheme plugin listed in hints.nvim.colorscheme, and appends the
+-- optional overrides/nvim.lua sidecar.
+--
+-- This baseline runs even if a theme.json has no nvim hints — it
+-- guarantees the file is a valid Lua chunk when sourced.
+
+-- Fallback: terminal colors so bare `:source theme.lua` never leaves
+-- the editor unrendered.
+vim.o.termguicolors = true
+vim.o.background = "dark"
