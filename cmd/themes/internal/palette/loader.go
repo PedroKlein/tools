@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-// LoadTheme parses a theme.json file and returns a fully-hydrated *Theme
+// Load parses a theme.json file and returns a fully-hydrated *Theme
 // with all optional fields defaulted per the schema documentation.
 //
 // The `path` argument is either the theme directory (looked up
 // <path>/theme.json) or the theme.json file itself.
 //
-// After LoadTheme returns nil error:
+// After Load returns nil error:
 //   - t.Palette.Ansi is length 16, every entry non-empty
 //   - t.Palette.Semantic.* (7 required slots) are non-empty
 //   - All optional slots carry their documented default
@@ -24,9 +24,9 @@ import (
 //   - t.Unknown contains every top-level key the schema did not define
 //     (empty map when there are none)
 //
-// Naming note: exported as LoadTheme instead of Load because v3's Load
+// Naming note: exported as Load instead of Load because v3's Load
 // still exists in palette.go. Renamed to Load in P1.11.
-func LoadTheme(path string) (*Theme, error) {
+func Load(path string) (*Theme, error) {
 	filePath, dir, err := resolveThemePaths(path)
 	if err != nil {
 		return nil, err

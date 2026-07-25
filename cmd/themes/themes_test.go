@@ -98,26 +98,6 @@ func TestSaveAtomicUsesRename(t *testing.T) {
 	}
 }
 
-func TestDeriveNameFromURL(t *testing.T) {
-	tests := []struct {
-		url, want string
-	}{
-		{"https://github.com/Justikun/omarchy-osaka-jade-theme", "osaka-jade"},
-		{"https://github.com/Justikun/omarchy-osaka-jade-theme.git", "osaka-jade"},
-		{"https://github.com/foo/omarchy-catppuccin-mocha-theme/", "catppuccin-mocha"},
-		{"git@github.com:foo/omarchy-tokyonight-theme.git", "tokyonight"},
-		{"https://github.com/foo/rose-pine-theme", "rose-pine"},
-		{"https://github.com/foo/gruvbox", "gruvbox"},
-		{"", ""},
-	}
-	for _, tt := range tests {
-		got := deriveNameFromURL(tt.url)
-		if got != tt.want {
-			t.Errorf("deriveNameFromURL(%q) = %q, want %q", tt.url, got, tt.want)
-		}
-	}
-}
-
 func TestSwapSymlinkAtomic(t *testing.T) {
 	// Simulate atomic symlink swap: link -> A, then swap to B.
 	dir := t.TempDir()
@@ -141,38 +121,5 @@ func TestSwapSymlinkAtomic(t *testing.T) {
 }
 
 func TestParseAlacrittyForSwatch(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "alacritty.toml")
-	os.WriteFile(p, []byte(`[colors]
-[colors.primary]
-background = '#111c18'
-foreground = '#C1C497'
-
-[colors.normal]
-black   = "#23372B"
-red     = "#FF5345"
-green   = "#549e6a"
-
-[colors.bright]
-black   = "#53685B"
-red     = "#db9f9c"
-`), 0o644)
-	m, err := parseAlacrittyForSwatch(p)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	checks := map[string]string{
-		"primary_background": "#111C18",
-		"primary_foreground": "#C1C497",
-		"normal_black":       "#23372B",
-		"normal_red":         "#FF5345",
-		"normal_green":       "#549E6A",
-		"bright_black":       "#53685B",
-		"bright_red":         "#DB9F9C",
-	}
-	for k, want := range checks {
-		if got := m[k]; got != want {
-			t.Errorf("%s = %q, want %q", k, got, want)
-		}
-	}
+	t.Skip("v3 alacritty.toml parser deleted in P1.11; superseded by palette.Load")
 }

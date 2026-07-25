@@ -12,9 +12,9 @@ import (
 // non-empty, contains the 4 block markers, and has an app-specific
 // smoke-check.
 func TestEmittersWave1SmokeAgainstOsakaJade(t *testing.T) {
-	th, err := LoadTheme(filepath.Join("testdata", "osaka-jade"))
+	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 
 	// The 5 wave-1 emitters we expect to be registered.

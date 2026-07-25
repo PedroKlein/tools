@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-// TestLoadThemeReturnsHydratedTheme verifies AC-1: LoadTheme returns a
+// TestLoadReturnsHydratedTheme verifies AC-1: Load returns a
 // fully-hydrated Theme with non-zero values for required fields, and
 // applies documented defaults for missing optional fields.
-func TestLoadThemeReturnsHydratedTheme(t *testing.T) {
+func TestLoadReturnsHydratedTheme(t *testing.T) {
 	dir := filepath.Join("testdata", "osaka-jade")
-	th, err := LoadTheme(dir)
+	th, err := Load(dir)
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 
 	// Required fields present and populated.
@@ -64,9 +64,9 @@ func TestLoadThemeReturnsHydratedTheme(t *testing.T) {
 	}
 }
 
-// TestLoadThemeDefaultsFillEmptySlots verifies AC-1: default-fill logic
+// TestLoadDefaultsFillEmptySlots verifies AC-1: default-fill logic
 // populates optional slots when they are absent from theme.json.
-func TestLoadThemeDefaultsFillEmptySlots(t *testing.T) {
+func TestLoadDefaultsFillEmptySlots(t *testing.T) {
 	// Minimal theme: 7 required semantic slots and 16 ANSI, nothing else.
 	minimal := `{
 		"name": "minimal",
@@ -154,10 +154,10 @@ func TestLoadThemeDefaultsFillEmptySlots(t *testing.T) {
 	}
 }
 
-// TestLoadThemePreservesUnknownKeys verifies AC-2: unknown top-level keys
+// TestLoadPreservesUnknownKeys verifies AC-2: unknown top-level keys
 // are preserved (not errored on) so schema evolution doesn't break older
 // tooling reading newer themes.
-func TestLoadThemePreservesUnknownKeys(t *testing.T) {
+func TestLoadPreservesUnknownKeys(t *testing.T) {
 	// Same minimal skeleton with an extra top-level key.
 	raw := `{
 		"name": "with-extra",
@@ -195,9 +195,9 @@ func TestLoadThemePreservesUnknownKeys(t *testing.T) {
 	}
 }
 
-// TestLoadThemeRejectsMissingRequired documents that the loader enforces
+// TestLoadRejectsMissingRequired documents that the loader enforces
 // required fields even when callers bypass the schema.
-func TestLoadThemeRejectsMissingRequired(t *testing.T) {
+func TestLoadRejectsMissingRequired(t *testing.T) {
 	// Missing palette.semantic.bg
 	raw := `{
 		"name": "bad",

@@ -70,15 +70,14 @@ func (m *installPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if strings.TrimSpace(m.input) == "" {
 				return m, nil
 			}
-			m.installing = true
+			// v4: install is superseded by /theme-import (see P4). The
+			// TUI pane no longer clones + parses upstream; it displays a
+			// pointer to the slash command instead.
+			m.installing = false
 			return m, func() tea.Msg {
 				url := strings.TrimSpace(m.input)
-				name := deriveNameFromURL(url)
-				if name == "" {
-					name = "installed-theme"
-				}
-				installed, err := installFromURL(url, name)
-				return installResultMsg{name: installed, err: err}
+				return installResultMsg{name: "", err: fmt.Errorf(
+					"install superseded; run /theme-import %s in Pi", url)}
 			}
 		case tea.KeyBackspace:
 			if m.cursor > 0 {

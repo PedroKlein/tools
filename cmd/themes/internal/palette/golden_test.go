@@ -20,9 +20,9 @@ var updateGoldens = flag.Bool("update", false, "rewrite golden emitter outputs u
 // therefore not in EmittersV4 and does not require a golden. The other
 // 18 emitters do.
 func TestGoldenAllEmitters(t *testing.T) {
-	th, err := LoadTheme(filepath.Join("testdata", "osaka-jade"))
+	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	goldenDir := filepath.Join("testdata", "osaka-jade", "derived")
 	if err := os.MkdirAll(goldenDir, 0o755); err != nil {

@@ -2,14 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/PedroKlein/tools/cmd/themes/internal/palette"
 )
 
 // runSettingsInteractive opens the per-current-theme settings sub-TUI.
@@ -146,7 +148,7 @@ func (m *settingsModel) adjust(dir int) {
 		m.err = err
 		return
 	}
-	if _, _, err := deriveTheme(m.themeDir); err != nil {
+	if _, err := deriveThemeV4(m.themeDir); err != nil {
 		m.err = err
 		return
 	}
@@ -257,160 +259,130 @@ func modeMetaValue(mode string) string {
 }
 
 // --- meta persistence -----------------------------------------------------
+//
+// v4 note: settings live inside theme.json (effects.opacity, effects.blur,
+// macos.appearance) instead of the v3 palette.toml [meta] block. This
+// file exposes a map[string]string API so the settings-pane widgets
+// don't have to know about the storage format. P5.4 completes the
+// unknown-key-preservation contract; P1.11 lands the minimum needed
+// for the palette.toml deletion sweep.
 
-// loadMeta reads the [meta] block from <themeDir>/palette.toml.
-// Returns an empty map if palette.toml is absent.
+// loadMeta reads settings-relevant fields from <themeDir>/theme.json.
+// Returns an empty map when theme.json is absent or unparseable.
 func loadMeta(themeDir string) map[string]string {
-	data, err := os.ReadFile(filepath.Join(themeDir, "palette.toml"))
-	if err != nil {
-		return map[string]string{}
-	}
-	return extractMetaSection(string(data))
-}
-
-// extractMetaSection is a minimal TOML slicer that pulls out the [meta]
-// section as key\u2192value pairs. Duplicates parsePaletteTOML's logic to
-// avoid coupling to the internal package.
-func extractMetaSection(s string) map[string]string {
 	out := map[string]string{}
-	inMeta := false
-	for _, line := range strings.Split(s, "\n") {
-		t := strings.TrimSpace(line)
-		if t == "" || strings.HasPrefix(t, "#") {
-			continue
-		}
-		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
-			inMeta = strings.Trim(t, "[]") == "meta"
-			continue
-		}
-		if !inMeta {
-			continue
-		}
-		eq := strings.Index(t, "=")
-		if eq < 0 {
-			continue
-		}
-		key := strings.TrimSpace(t[:eq])
-		val := strings.TrimSpace(t[eq+1:])
-		val = strings.Trim(val, `"'`)
-		out[key] = val
+	th, err := palette.Load(themeDir)
+	if err != nil {
+		return out
+	}
+	if th.Effects.Opacity > 0 && th.Effects.Opacity < 1 {
+		out["opacity"] = fmt.Sprintf("%g", th.Effects.Opacity)
+	}
+	if th.Effects.Blur > 0 {
+		out["blur"] = fmt.Sprintf("%d", int(th.Effects.Blur))
+	}
+	if th.Macos.Appearance != "" && th.Macos.Appearance != th.Appearance {
+		out["mode"] = th.Macos.Appearance
+	}
+	if th.Macos.Accent != "" {
+		out["accent_preset"] = th.Macos.Accent
+	}
+	if th.Macos.Highlight != "" {
+		out["highlight_hex"] = th.Macos.Highlight
 	}
 	return out
 }
 
-// writeMeta patches the [meta] block in <themeDir>/palette.toml.
-// MERGES with existing keys instead of replacing them, so unrelated
-// meta (e.g. accent_preset overrides, custom user knobs) survive edits.
+// writeMeta merges updates into <themeDir>/theme.json's effects/macos
+// blocks. Values of "" delete the corresponding field.
 //
-// Values whose value is "" are removed from the file (lets "mode=auto"
-// clear the override cleanly).
-//
-// Behavior: read the existing [meta] section into a map, apply updates
-// on top (empty values delete), then re-emit with keys sorted for stable
-// output. Non-meta sections pass through byte-for-byte. Inline comments
-// inside [meta] are lost — [meta] is a scalar bag, not a place for prose.
+// Uses a map[string]any round-trip so unknown top-level keys survive
+// (partial P5.4 — field ordering may reshuffle since encoding/json
+// alphabetizes maps).
 func writeMeta(themeDir string, updates map[string]string) error {
-	path := filepath.Join(themeDir, "palette.toml")
+	path := filepath.Join(themeDir, "theme.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		merged := map[string]string{}
-		for k, v := range updates {
-			if v != "" {
-				merged[k] = v
-			}
-		}
-		return writeFileAtomic(path, []byte(renderMetaSection(merged)), 0o644)
+		return fmt.Errorf("writeMeta: read theme.json: %w", err)
 	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return fmt.Errorf("writeMeta: parse theme.json: %w", err)
+	}
+	effects := ensureObject(doc, "effects")
+	macos := ensureObject(doc, "macos")
 
-	// Merge existing [meta] with updates.
-	merged := extractMetaSection(string(data))
 	for k, v := range updates {
-		if v == "" {
-			delete(merged, k)
-		} else {
-			merged[k] = v
-		}
-	}
-
-	lines := strings.Split(string(data), "\n")
-	var out []string
-	inMeta := false
-	metaWritten := false
-
-	writeMetaBody := func() {
-		out = append(out, strings.TrimRight(renderMetaSection(merged), "\n"))
-		metaWritten = true
-	}
-
-	for i, line := range lines {
-		trim := strings.TrimSpace(line)
-		if strings.HasPrefix(trim, "[") && strings.HasSuffix(trim, "]") {
-			section := strings.Trim(trim, "[]")
-			if section == "meta" {
-				inMeta = true
-				writeMetaBody()
+		switch k {
+		case "opacity":
+			if v == "" {
+				delete(effects, "opacity")
 				continue
 			}
-			if inMeta {
-				inMeta = false
+			var f float64
+			fmt.Sscanf(v, "%f", &f)
+			effects["opacity"] = f
+		case "blur":
+			if v == "" {
+				delete(effects, "blur")
+				continue
 			}
-			out = append(out, line)
-			continue
+			var n int
+			fmt.Sscanf(v, "%d", &n)
+			effects["blur"] = n
+		case "mode":
+			if v == "" || v == "auto" {
+				delete(macos, "appearance")
+				continue
+			}
+			macos["appearance"] = v
+		case "accent_preset":
+			if v == "" {
+				delete(macos, "accent")
+				continue
+			}
+			macos["accent"] = v
+		case "highlight_hex":
+			if v == "" {
+				delete(macos, "highlight")
+				continue
+			}
+			macos["highlight"] = v
 		}
-		if inMeta {
-			continue
-		}
-		if i == len(lines)-1 && line == "" && len(out) > 0 && out[len(out)-1] == "" {
-			continue
-		}
-		out = append(out, line)
 	}
-	if !metaWritten {
-		out = append(out, "")
-		writeMetaBody()
+
+	// Drop empty objects.
+	if len(effects) == 0 {
+		delete(doc, "effects")
 	}
-	return writeFileAtomic(path, []byte(strings.Join(out, "\n")), 0o644)
+	if len(macos) == 0 {
+		delete(doc, "macos")
+	}
+
+	out, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	out = append(out, '\n')
+	return writeFileAtomic(path, out, 0o644)
 }
 
-// renderMetaSection emits `[meta]` + `key = value` per entry in sorted
-// key order so output is stable across writes.
-func renderMetaSection(meta map[string]string) string {
-	keys := make([]string, 0, len(meta))
-	for k := range meta {
-		keys = append(keys, k)
+// ensureObject returns doc[key] as a map, creating an empty one if absent.
+func ensureObject(doc map[string]any, key string) map[string]any {
+	if existing, ok := doc[key].(map[string]any); ok {
+		return existing
 	}
-	sort.Strings(keys)
-	var b strings.Builder
-	b.WriteString("[meta]\n")
-	for _, k := range keys {
-		fmt.Fprintf(&b, "%s = %s\n", k, formatMetaValue(meta[k]))
-	}
-	return b.String()
-}
-
-// formatMetaValue chooses a quoting/type for a meta value:
-//   • numeric strings pass through unquoted
-//   • everything else gets double-quoted
-func formatMetaValue(v string) string {
-	if _, err := parseNumeric(v); err == nil {
-		return v
-	}
-	return `"` + v + `"`
-}
-
-// parseNumeric is a lightweight check for "looks like a number" without
-// pulling strconv into this file's imports twice.
-func parseNumeric(s string) (float64, error) {
-	var f float64
-	_, err := fmt.Sscanf(s, "%f", &f)
-	return f, err
+	m := map[string]any{}
+	doc[key] = m
+	return m
 }
 
 // --- meta getter helpers --------------------------------------------------
 
 func metaFloat(meta map[string]string, key string, def float64) float64 {
 	if v, ok := meta[key]; ok {
-		if f, err := parseNumeric(v); err == nil {
+		var f float64
+		if _, err := fmt.Sscanf(v, "%f", &f); err == nil {
 			return f
 		}
 	}
@@ -453,42 +425,16 @@ func defaultBlur(themeDir string) int {
 	return 20
 }
 
-// isLightTheme is a rough duplicate of internal/palette.IsLight. Kept
-// package-local to avoid a cyclic import when settings.go is in cmd/themes
-// but IsLight lives in internal/palette. Small YIQ formula.
+// isLightTheme reads <themeDir>/theme.json and returns true when the
+// background reads as light (YIQ > 128). Falls back to false when
+// theme.json is missing/invalid, which keeps the ghostty translucency
+// defaults on the dark-theme code path.
 func isLightTheme(themeDir string) bool {
-	// Read alacritty.toml primary background.
-	data, err := os.ReadFile(filepath.Join(themeDir, "alacritty.toml"))
+	th, err := palette.Load(themeDir)
 	if err != nil {
 		return false
 	}
-	bg := "#000000"
-	inPrimary := false
-	for _, line := range strings.Split(string(data), "\n") {
-		t := strings.TrimSpace(line)
-		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
-			s := strings.TrimPrefix(strings.Trim(t, "[]"), "colors.")
-			inPrimary = s == "primary"
-			continue
-		}
-		if inPrimary && strings.HasPrefix(t, "background") {
-			eq := strings.Index(t, "=")
-			if eq >= 0 {
-				v := strings.TrimSpace(t[eq+1:])
-				v = strings.Trim(v, `"'`)
-				bg = v
-			}
-			break
-		}
-	}
-	// YIQ brightness.
-	s := strings.TrimPrefix(bg, "#")
-	if len(s) != 6 {
-		return false
-	}
-	var r, g, b int
-	fmt.Sscanf(s, "%02x%02x%02x", &r, &g, &b)
-	return (r*299+g*587+b*114)/1000 > 128
+	return palette.IsLight(th.Palette.Semantic.Bg)
 }
 
 // roundHundredths rounds x to two decimal places (avoid float display drift).

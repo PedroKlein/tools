@@ -11,9 +11,9 @@ import (
 // against osaka-jade. Also verifies AC-2: btop emitter uses
 // palette.gradients.* when present.
 func TestEmittersWave4SmokeAgainstOsakaJade(t *testing.T) {
-	th, err := LoadTheme(filepath.Join("testdata", "osaka-jade"))
+	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 
 	got := map[string]Emitter{}

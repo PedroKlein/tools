@@ -1,10 +1,24 @@
 package palette
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // This file holds the small helpers used by the default-fill logic in
 // loader.go. Kept separate from color.go so v3 emitters that still
 // import color.go don't pick up v4-only helpers by accident.
+
+// trimFloat formats a float using Python-style repr: trailing zeros
+// stripped, but at least one decimal for whole numbers.
+// 0.85 -> "0.85", 1.0 -> "1.0", 0.5 -> "0.5".
+func trimFloat(f float64) string {
+	s := fmt.Sprintf("%g", f)
+	if !strings.Contains(s, ".") && !strings.Contains(s, "e") {
+		s += ".0"
+	}
+	return s
+}
 
 // darken returns `hex` with every RGB channel scaled by (1 - pct).
 // pct is clamped to [0, 1]. Returns "#000000" on parse garbage (matches

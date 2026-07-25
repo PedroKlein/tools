@@ -12,9 +12,9 @@ import (
 // TestEmittersWave5MacosAgainstOsakaJade — macos.json emitter reads
 // theme.Macos and produces the schema the macos-system.sh hook expects.
 func TestEmittersWave5MacosAgainstOsakaJade(t *testing.T) {
-	th, err := LoadTheme(filepath.Join("testdata", "osaka-jade"))
+	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	got := map[string]Emitter{}
 	for _, e := range EmittersV4 {

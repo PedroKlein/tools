@@ -28,7 +28,7 @@ type ThemeInfo struct {
 // ListThemes enumerates theme directories under ~/.config/themes/.
 // A directory is a theme iff:
 //   - name does not begin with "."
-//   - directory contains alacritty.toml
+//   - directory contains theme.json
 //
 // Themes are returned sorted alphabetically. The active theme is marked.
 func ListThemes() ([]ThemeInfo, error) {
@@ -54,17 +54,17 @@ func ListThemes() ([]ThemeInfo, error) {
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		if !fileExists(filepath.Join(dir, "alacritty.toml")) {
-			// Not a valid theme dir. Skip silently.
+		if !fileExists(filepath.Join(dir, "theme.json")) {
+			// Not a valid v4 theme dir. Skip silently.
 			continue
 		}
 		t := ThemeInfo{
 			Name:         name,
 			Path:         dir,
 			Current:      name == activeName,
-			HasAlacritty: true,
-			HasPalette:   fileExists(filepath.Join(dir, "palette.toml")),
-			HasNeovim:    fileExists(filepath.Join(dir, "neovim.lua")),
+			HasAlacritty: true, // legacy field, always true for v4 themes
+			HasPalette:   true, // legacy field, theme.json subsumes palette.toml
+			HasNeovim:    fileExists(filepath.Join(dir, "overrides", "nvim.lua")),
 		}
 		t.WallpaperCount = countWallpapers(filepath.Join(dir, "backgrounds"))
 		themes = append(themes, t)
@@ -135,8 +135,8 @@ func Set(name string, opts SetOptions) error {
 	if !dirExists(dir) {
 		return &SetError{Kind: ExitNotFound, Msg: fmt.Sprintf("theme not installed: %s", name)}
 	}
-	if !fileExists(filepath.Join(dir, "alacritty.toml")) {
-		return &SetError{Kind: ExitError, Msg: fmt.Sprintf("theme dir missing alacritty.toml: %s", dir)}
+	if !fileExists(filepath.Join(dir, "theme.json")) {
+		return &SetError{Kind: ExitError, Msg: fmt.Sprintf("theme dir missing theme.json: %s", dir)}
 	}
 
 	// Serialize concurrent theme swaps via a POSIX flock on a well-known

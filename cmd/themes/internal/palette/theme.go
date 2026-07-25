@@ -7,12 +7,12 @@ import "path/filepath"
 //
 // Naming note: the P1.1 acceptance criterion asks for `Load(path string)
 // (*Theme, error)`. Because the v3 code still exports `Load(themeDir
-// string) (*Palette, error)`, the v4 loader is exported as `LoadTheme`
+// string) (*Palette, error)`, the v4 loader is exported as `Load`
 // for the duration of the port and will be renamed to `Load` in P1.11
 // when the v3 parser is deleted.
 
 // Theme is the fully-hydrated, default-filled representation of a v4
-// theme.json file. Every field has a defined value after LoadTheme:
+// theme.json file. Every field has a defined value after Load:
 // optional fields carry their documented default.
 //
 // Emitters MUST read only from *Theme, not from raw theme.json bytes.
@@ -71,7 +71,7 @@ type Theme struct {
 
 	// Unknown collects any top-level keys the schema did not know about,
 	// so downstream code (e.g. TUI settings pane write-back) can round-
-	// trip them. Populated by LoadTheme; not part of the schema itself.
+	// trip them. Populated by Load; not part of the schema itself.
 	Unknown map[string]any `json:"-"`
 }
 
@@ -85,7 +85,7 @@ type Colors struct {
 	// Ansi is the 16-color ANSI palette in fixed order:
 	// [black, red, green, yellow, blue, magenta, cyan, white,
 	//  brBlack, brRed, brGreen, brYellow, brBlue, brMagenta, brCyan, brWhite].
-	// Always length 16 after LoadTheme.
+	// Always length 16 after Load.
 	Ansi [16]string `json:"ansi"`
 
 	Semantic  Semantic  `json:"semantic"`

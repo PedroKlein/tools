@@ -12,9 +12,9 @@ import (
 // against osaka-jade and asserts each output has correct semantic
 // content. bat.tmTheme is also verified as valid XML.
 func TestEmittersWave3SmokeAgainstOsakaJade(t *testing.T) {
-	th, err := LoadTheme(filepath.Join("testdata", "osaka-jade"))
+	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 
 	got := map[string]Emitter{}

@@ -12,9 +12,9 @@ import (
 // against osaka-jade and asserts each output has correct semantic
 // content plus (for pi.json) valid JSON.
 func TestEmittersWave2SmokeAgainstOsakaJade(t *testing.T) {
-	th, err := LoadTheme(filepath.Join("testdata", "osaka-jade"))
+	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
-		t.Fatalf("LoadTheme: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 
 	got := map[string]Emitter{}

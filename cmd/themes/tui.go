@@ -8,6 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/PedroKlein/tools/cmd/themes/internal/palette"
 )
 
 // runTUI is the interactive theme picker.
@@ -326,24 +328,21 @@ func (m *pickerModel) renderPreview() string {
 	return m.styles.PreviewBox.Render(strings.Join(meta, "\n"))
 }
 
-// renderSwatches reads the theme's alacritty.toml and draws colored blocks.
+// renderSwatches reads the theme's theme.json ANSI palette and draws
+// colored blocks. Falls back to '(no swatches)' when theme.json is
+// missing or unparseable.
 func renderSwatches(t ThemeInfo) string {
-	al, err := parseAlacrittyForSwatch(filepath.Join(t.Path, "alacritty.toml"))
+	th, err := palette.Load(t.Path)
 	if err != nil {
 		return "(no swatches)"
 	}
 	block := "██"
 	var line1, line2 []string
-	names := []string{"black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"}
-	for _, n := range names {
-		if hex, ok := al["normal_"+n]; ok {
-			line1 = append(line1, lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render(block))
-		}
+	for i := 0; i < 8; i++ {
+		line1 = append(line1, lipgloss.NewStyle().Foreground(lipgloss.Color(th.Palette.Ansi[i])).Render(block))
 	}
-	for _, n := range names {
-		if hex, ok := al["bright_"+n]; ok {
-			line2 = append(line2, lipgloss.NewStyle().Foreground(lipgloss.Color(hex)).Render(block))
-		}
+	for i := 8; i < 16; i++ {
+		line2 = append(line2, lipgloss.NewStyle().Foreground(lipgloss.Color(th.Palette.Ansi[i])).Render(block))
 	}
 	return strings.Join(line1, " ") + "\n" + strings.Join(line2, " ")
 }

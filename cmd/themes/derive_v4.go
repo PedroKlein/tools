@@ -16,7 +16,7 @@ import (
 // Idempotent: given identical theme.json + overrides sidecars, produces
 // byte-identical derived/*. That's the property the p1-9 AC checks.
 func deriveThemeV4(themeDir string) (written []string, err error) {
-	t, err := palette.LoadTheme(themeDir)
+	t, err := palette.Load(themeDir)
 	if err != nil {
 		return nil, fmt.Errorf("load theme.json: %w", err)
 	}
