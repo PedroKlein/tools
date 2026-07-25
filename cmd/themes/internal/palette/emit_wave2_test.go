@@ -27,25 +27,31 @@ func TestEmittersWave2SmokeAgainstOsakaJade(t *testing.T) {
 		if e == nil {
 			t.Fatal("nvim emitter missing")
 		}
+		if e.Filename() != "neovim.lua" {
+			t.Errorf("Filename() = %q, want neovim.lua (LazyVim's colorscheme.lua reader expects this exact name)", e.Filename())
+		}
 		var buf bytes.Buffer
 		if err := e.Emit(th, &buf); err != nil {
 			t.Fatalf("Emit: %v", err)
 		}
 		out := buf.String()
-		// Baseline + semantic markers with -- (Lua) prefix.
-		if !strings.Contains(out, "-- --- semantic ---") {
-			t.Errorf("missing semantic marker with -- prefix:\n%s", out)
+		// Regression (e2): file must be a Lua plugin spec table,
+		// not an imperative script. LazyVim dofile()'s the file and
+		// expects a table return value.
+		if !strings.Contains(out, "return {") {
+			t.Errorf("nvim emitter must return a plugin spec table:\n%s", out)
 		}
-		// Correct hint: colorscheme is bamboo (from osaka-jade hints).
-		if !strings.Contains(out, `vim.cmd.colorscheme, "bamboo"`) {
-			t.Errorf("expected bamboo colorscheme call:\n%s", out)
+		if !strings.Contains(out, "config = function()") {
+			t.Errorf("nvim spec must have config = function() block:\n%s", out)
 		}
-		if !strings.Contains(out, `vim.cmd.colorscheme, "carbonfox"`) {
-			t.Errorf("expected carbonfox fallback:\n%s", out)
+		// Plugin repo from hints.nvim.plugin appears as spec[1].
+		if !strings.Contains(out, `"ribru17/bamboo.nvim"`) {
+			t.Errorf("expected hints.nvim.plugin (ribru17/bamboo.nvim) as spec[1]:\n%s", out)
 		}
-		// Sidecar contents should be appended.
+		// Sidecar body injected into config function — the osaka-jade
+		// override calls bamboo.setup with custom colors.
 		if !strings.Contains(out, "bamboo.setup") {
-			t.Errorf("nvim override sidecar not appended:\n%s", out)
+			t.Errorf("expected sidecar bamboo.setup body inside config function:\n%s", out)
 		}
 	})
 

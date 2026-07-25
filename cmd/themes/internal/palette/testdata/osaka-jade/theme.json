@@ -91,7 +91,8 @@
   "hints": {
     "nvim": {
       "colorscheme": "bamboo",
-      "fallback":    "carbonfox"
+      "fallback":    "carbonfox",
+      "plugin":      "ribru17/bamboo.nvim"
     },
     "aerospace": {
       "gaps": { "inner": 6, "outer": 12 }
