@@ -12,7 +12,6 @@ gui:
   nerdFontsVersion: "3"
 
 # --- semantic ---
-gui:
   theme:
     activeBorderColor: ["#549E6A", bold]
     inactiveBorderColor: ["#509475"]

@@ -66,6 +66,20 @@ func TestEmittersWave3SmokeAgainstOsakaJade(t *testing.T) {
 				t.Errorf("missing %q:\n%s", want, out)
 			}
 		}
+		// Regression (e1): the baseline emits a top-level `gui:` mapping
+		// and the semantic block emits its `theme:` child. Two top-level
+		// `gui:` keys are invalid YAML — lazygit rejects with
+		// 'mapping key "gui" already defined'. Guard by asserting a
+		// SINGLE ^gui: line in the output.
+		guiKeys := 0
+		for _, line := range strings.Split(out, "\n") {
+			if strings.HasPrefix(line, "gui:") {
+				guiKeys++
+			}
+		}
+		if guiKeys != 1 {
+			t.Errorf("lazygit.yml has %d top-level `gui:` keys, want 1:\n%s", guiKeys, out)
+		}
 	})
 
 	t.Run("gh-dash", func(t *testing.T) {

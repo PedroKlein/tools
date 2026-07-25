@@ -18,7 +18,11 @@ func (e lazygitEmitter) Emit(t *Theme, w io.Writer) error {
 
 func emitLazygitSemantic(t *Theme, w io.Writer) error {
 	s := t.Palette.Semantic
-	fmt.Fprintln(w, "gui:")
+	// The baseline emits the `gui:` mapping at column 0. This block
+	// writes `theme:` indented as a child of that mapping. Emitting
+	// another `gui:` at column 0 here would produce YAML with two
+	// top-level `gui:` keys, which lazygit rejects at load time:
+	//   yaml: unmarshal errors: mapping key "gui" already defined
 	fmt.Fprintln(w, "  theme:")
 	fmt.Fprintf(w, "    activeBorderColor: [%q, bold]\n", s.Accent)
 	fmt.Fprintf(w, "    inactiveBorderColor: [%q]\n", s.Border)
