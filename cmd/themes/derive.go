@@ -11,13 +11,12 @@ import (
 
 // runDerive implements `themes derive [<name>]`.
 //
-// Regenerates all 13 derived files for a theme from its alacritty.toml
-// (mandatory) and palette.toml (optional). If <name> is omitted, uses the
-// currently active theme (read from `.current` symlink).
+// v4: if <themeDir>/theme.json exists, use the v4 pipeline (LoadTheme +
+// EmittersV4) writing to <themeDir>/derived/. Falls back to v3
+// (alacritty.toml + palette.toml → top-level files) for themes that
+// haven't been migrated yet.
 //
-// Ghostty preservation: if a theme dir has a hand-authored or upstream
-// ghostty.conf (first non-empty line != "# primary"), it is skipped so
-// upstream customizations survive `themes derive`.
+// If <name> is omitted, uses the currently active theme.
 func runDerive(args []string) {
 	var name string
 	switch len(args) {
@@ -36,6 +35,18 @@ func runDerive(args []string) {
 	dir := themeDir(name)
 	if !dirExists(dir) {
 		dieMsg(fmt.Sprintf("theme not installed: %s", name), ExitNotFound)
+	}
+
+	// Prefer v4 pipeline when theme.json is present.
+	if fileExists(filepath.Join(dir, "theme.json")) {
+		written, err := deriveThemeV4(dir)
+		if err != nil {
+			dieMsg(err.Error(), ExitError)
+		}
+		if !jsonOutput {
+			fmt.Fprintf(os.Stderr, "themes derive: %s regenerated (%d files -> derived/)\n", name, len(written))
+		}
+		return
 	}
 
 	written, skipped, err := deriveTheme(dir)
