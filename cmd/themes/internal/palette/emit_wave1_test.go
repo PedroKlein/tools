@@ -34,7 +34,40 @@ func TestEmittersWave1SmokeAgainstOsakaJade(t *testing.T) {
 			}
 		},
 		"sketchybar": func(out string) []string {
-			return []string{"export BAR_BG=0x", "export ACCENT=0xff"}
+			// Regression (E3): sketchybarrc + plugins in
+			// configs-shared/.config/sketchybar/ reference every one of
+			// these variables. Any missing export makes sketchybar fall
+			// back to macOS system tint on icon.color, which is what the
+			// user reported as 'app icons don't change color'.
+			return []string{
+				"export BAR_BG=0x",
+				"export BAR_BORDER=0x",
+				"export FG=0x",
+				"export FG_MUTED=0x",
+				"export FG_BRIGHT=0x",
+				"export ACCENT=0x",
+				"export ACCENT_BRIGHT=0x",
+				"export ACCENT_ON=0x",
+				"export HIGHLIGHT=0x",
+				"export RED=0x",
+				"export YELLOW=0x",
+				"export GREEN=0x",
+				"export CYAN=0x",
+				"export MAGENTA=0x",
+				"export INFO=0x",
+				"export TEAL=0x",
+				"export JADE=0x",
+				"export VOLUME=0x",
+				"export PERCENTAGE=0x",
+				"export SURFACE=0x",
+				"export SURFACE_LIGHT=0x",
+				"export ICON=0x",
+				"export CHARGING=0x",
+				"export FOCUSED=0x",
+				"export FOCUSED_WORKSPACE=0x",
+				"export NON_EMPTY=0x",
+				"export BADGE=0x",
+			}
 		},
 		"aerospace": func(out string) []string {
 			return []string{`focused_border = "` + th.Palette.Semantic.Accent + `"`}

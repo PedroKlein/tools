@@ -41,7 +41,18 @@ func emitSketchybarSemantic(t *Theme, w io.Writer) error {
 
 	// Accents.
 	fmt.Fprintf(w, "export ACCENT=%s\n", sbFull(s.Accent))
-	fmt.Fprintf(w, "export ACCENT_BRIGHT=%s\n", sbFull(s.Accent2))
+	// ACCENT_BRIGHT is a same-hue brighter shade of ACCENT (matches v3
+	// osaka-jade UX where the workspace border used a lighter green,
+	// not accent2 which can be a different hue entirely). Default to
+	// s.Ok which is semantically the 'bright positive' color; themes
+	// with a red accent should override via hints.sketchybar.accentBright.
+	accentBright := s.Ok
+	if h := t.Hint("sketchybar"); h != nil {
+		if v, ok := h["accentBright"].(string); ok && v != "" {
+			accentBright = v
+		}
+	}
+	fmt.Fprintf(w, "export ACCENT_BRIGHT=%s\n", sbFull(accentBright))
 	fmt.Fprintf(w, "export ACCENT_ON=%s\n", sbFull(YIQContrast(s.Accent)))
 	fmt.Fprintf(w, "export HIGHLIGHT=%s\n", sbFull(s.Accent))
 
@@ -52,6 +63,32 @@ func emitSketchybarSemantic(t *Theme, w io.Writer) error {
 	fmt.Fprintf(w, "export CYAN=%s\n", sbFull(t.Palette.Ansi[6]))
 	fmt.Fprintf(w, "export MAGENTA=%s\n", sbFull(t.Palette.Ansi[5]))
 	fmt.Fprintf(w, "export INFO=%s\n", sbFull(s.Info))
+	// V3 compat: sketchybarrc + plugins reference $TEAL, $JADE.
+	// TEAL = the cool-water color (ANSI blue slot in most palettes).
+	// JADE = a green accent alternative (Accent by default — for themes
+	// where Accent isn't green, override via hints.sketchybar.jade).
+	teal := t.Palette.Ansi[4]
+	jade := s.Accent
+	volumeC := t.Palette.Ansi[6]
+	percentageC := s.Fg
+	if h := t.Hint("sketchybar"); h != nil {
+		if v, ok := h["teal"].(string); ok && v != "" {
+			teal = v
+		}
+		if v, ok := h["jade"].(string); ok && v != "" {
+			jade = v
+		}
+		if v, ok := h["volume"].(string); ok && v != "" {
+			volumeC = v
+		}
+		if v, ok := h["percentage"].(string); ok && v != "" {
+			percentageC = v
+		}
+	}
+	fmt.Fprintf(w, "export TEAL=%s\n", sbFull(teal))
+	fmt.Fprintf(w, "export JADE=%s\n", sbFull(jade))
+	fmt.Fprintf(w, "export VOLUME=%s\n", sbFull(volumeC))
+	fmt.Fprintf(w, "export PERCENTAGE=%s\n", sbFull(percentageC))
 
 	// Surfaces.
 	fmt.Fprintf(w, "export SURFACE=%s\n", sbFull(s.BgAlt))
@@ -61,6 +98,9 @@ func emitSketchybarSemantic(t *Theme, w io.Writer) error {
 	fmt.Fprintf(w, "export ICON=%s\n", sbFull(s.Fg))
 	fmt.Fprintf(w, "export CHARGING=%s\n", sbFull(s.Warning))
 	fmt.Fprintf(w, "export FOCUSED=%s\n", sbFull(s.Accent2))
+	// V3 compat: aerospace.sh + sketchybarrc use $FOCUSED_WORKSPACE
+	// (no _COLOR suffix). Emit both to smooth the transition.
+	fmt.Fprintf(w, "export FOCUSED_WORKSPACE=%s\n", sbFull(s.Accent))
 	fmt.Fprintf(w, "export FOCUSED_WORKSPACE_COLOR=%s\n", sbFull(s.Accent))
 	fmt.Fprintf(w, "export NON_EMPTY=%s\n", sbFull(s.Fg))
 	fmt.Fprintf(w, "export BADGE=%s\n", sbFull(s.Warning))
