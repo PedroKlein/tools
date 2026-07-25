@@ -44,10 +44,18 @@ var registry = []Hook{
 		LiveApply: false,
 	},
 	{
+		// Ghostty needs an explicit reload_config trigger for hot-reload
+		// of background-opacity / background-blur to fire (PR #5083). SIGUSR2
+		// was requested upstream (issue #7747) but not implemented, and
+		// `+reload-config` CLI action was discussed (#10394) but not
+		// shipped. We osascript-click the Reload Configuration menu item
+		// via .hooks/ghostty.sh instead — menu clicks don't steal focus,
+		// so this is safe during scroll-preview.
+		// LiveApply=true so opacity updates track scroll like palette does.
 		Name:      "ghostty",
-		Kind:      KindInline,
-		Fn:        reloadGhostty,
-		LiveApply: true, // OSC broadcast handles running panes; this covers future panes
+		Kind:      KindExternal,
+		Script:    "ghostty.sh",
+		LiveApply: true,
 	},
 	{
 		Name:      "k9s",
@@ -124,24 +132,6 @@ var registry = []Hook{
 }
 
 // --- Inline hook implementations ------------------------------------------
-
-// reloadGhostty picks up new colors in future Ghostty panes (running panes
-// use the OSC broadcast; this just makes the config valid for new launches).
-//
-// Ghostty on macOS re-reads config on SIGUSR2. On Linux with systemd
-// (Omarchy), the service unit is reloaded to trigger the same effect.
-func reloadGhostty(ctx context.Context, themeDir string) error {
-	// systemd path first (Omarchy).
-	if _, err := exec.LookPath("systemctl"); err == nil {
-		out, err := exec.Command("systemctl", "--user", "is-active", "com.mitchellh.ghostty.service").Output()
-		if err == nil && strings.TrimSpace(string(out)) == "active" {
-			_ = exec.Command("systemctl", "reload", "--user", "com.mitchellh.ghostty.service").Run()
-			return nil
-		}
-	}
-	// Signal every running ghostty (no-op if none).
-	return signalProcess("ghostty", syscall.SIGUSR2)
-}
 
 // reloadOpencode rewrites ~/.config/opencode/tui.json's `theme` field to
 // match the current theme's opencode.name file.
