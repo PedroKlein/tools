@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/PedroKlein/tools/main/cmd/themes/schema/theme.schema.json",
+  "title": "Theme v1",
+  "description": "Semantic theme definition consumed by the themes(1) CLI. Every field except the required minimum has a documented default; unknown top-level fields are preserved (schema evolution).",
+  "type": "object",
+  "required": ["name", "appearance", "palette"],
+  "additionalProperties": true,
+
+  "properties": {
+    "$schema": { "type": "string" },
+
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Kebab-case identifier. Must match the containing directory name."
+    },
+    "displayName": { "type": "string" },
+    "author": { "type": "string" },
+    "upstream": {
+      "type": ["string", "null"],
+      "description": "Optional URL. Populated when the theme was imported from a marketplace repo."
+    },
+    "appearance": {
+      "type": "string",
+      "enum": ["dark", "light"],
+      "description": "Base appearance. macOS appearance mirrors this unless macos.appearance overrides."
+    },
+    "description": { "type": "string" },
+
+    "palette": {
+      "type": "object",
+      "required": ["ansi", "semantic"],
+      "additionalProperties": false,
+      "properties": {
+        "ansi": {
+          "type": "array",
+          "description": "16-color ANSI palette. Order: black, red, green, yellow, blue, magenta, cyan, white, brightBlack, brightRed, brightGreen, brightYellow, brightBlue, brightMagenta, brightCyan, brightWhite.",
+          "minItems": 16,
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/hexColor" }
+        },
+        "semantic": {
+          "type": "object",
+          "required": ["bg", "fg", "muted", "accent", "error", "warning", "ok"],
+          "additionalProperties": false,
+          "properties": {
+            "bg":           { "$ref": "#/$defs/hexColor" },
+            "fg":           { "$ref": "#/$defs/hexColor" },
+            "muted":        { "$ref": "#/$defs/hexColor" },
+            "accent":       { "$ref": "#/$defs/hexColor" },
+            "accent2":      { "$ref": "#/$defs/hexColor", "description": "Defaults to accent." },
+            "error":        { "$ref": "#/$defs/hexColor" },
+            "warning":      { "$ref": "#/$defs/hexColor" },
+            "ok":           { "$ref": "#/$defs/hexColor" },
+            "info":         { "$ref": "#/$defs/hexColor", "description": "Defaults to accent." },
+            "selection_bg": { "$ref": "#/$defs/hexColor", "description": "Defaults to accent @ 30% alpha over bg." },
+            "selection_fg": { "$ref": "#/$defs/hexColor", "description": "Defaults to fg." },
+            "cursor":       { "$ref": "#/$defs/hexColor", "description": "Defaults to accent2." },
+            "border":       { "$ref": "#/$defs/hexColor", "description": "Defaults to muted." },
+            "bg_alt":       { "$ref": "#/$defs/hexColor", "description": "Defaults to bg darkened by 5%." },
+            "fg_dim":       { "$ref": "#/$defs/hexColor", "description": "Defaults to fg mixed with muted." },
+            "git": {
+              "type": "object",
+              "description": "Git status colors. Defaults derived from ok/error/warning.",
+              "additionalProperties": false,
+              "properties": {
+                "added":    { "$ref": "#/$defs/hexColor" },
+                "removed":  { "$ref": "#/$defs/hexColor" },
+                "modified": { "$ref": "#/$defs/hexColor" }
+              }
+            },
+            "syntax": {
+              "type": "object",
+              "description": "Language syntax highlight colors. Defaults derived from the ANSI palette.",
+              "additionalProperties": false,
+              "properties": {
+                "keyword":  { "$ref": "#/$defs/hexColor" },
+                "string":   { "$ref": "#/$defs/hexColor" },
+                "number":   { "$ref": "#/$defs/hexColor" },
+                "comment":  { "$ref": "#/$defs/hexColor" },
+                "type":     { "$ref": "#/$defs/hexColor" },
+                "function": { "$ref": "#/$defs/hexColor" },
+                "operator": { "$ref": "#/$defs/hexColor" }
+              }
+            }
+          }
+        },
+        "gradients": {
+          "type": "object",
+          "description": "3-color start/mid/end tuples consumed by btop.",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": { "$ref": "#/$defs/hexColor" }
+          },
+          "properties": {
+            "temp":    { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/hexColor" } },
+            "cpu":     { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/hexColor" } },
+            "memory":  { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/hexColor" } },
+            "network": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/hexColor" } }
+          }
+        }
+      }
+    },
+
+    "typography": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "family":     { "type": "string" },
+        "size":       { "type": "number", "exclusiveMinimum": 0 },
+        "weight":     { "type": "string", "enum": ["thin", "light", "regular", "medium", "bold", "heavy"] },
+        "ligatures":  { "type": "boolean" },
+        "lineHeight": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+
+    "effects": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "blur":    { "type": "number", "minimum": 0 },
+        "cursor": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shape": { "type": "string", "enum": ["block", "bar", "underline"] },
+            "blink": { "type": "boolean" }
+          }
+        },
+        "shadow": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled":    { "type": "boolean" },
+            "radius":     { "type": "number", "minimum": 0 },
+            "opacityPct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "offset": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+
+    "macos": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "appearance": {
+          "type": "string",
+          "enum": ["dark", "light", "system"],
+          "description": "System appearance. Defaults to top-level appearance."
+        },
+        "accent": {
+          "type": "string",
+          "description": "Preset name (one of macOS 8 accents) or 'auto' for hue-match. If omitted, hue-match from palette.semantic.accent.",
+          "enum": ["multicolor", "blue", "purple", "pink", "red", "orange", "yellow", "green", "graphite", "auto"]
+        },
+        "highlight": {
+          "$ref": "#/$defs/hexColor",
+          "description": "Text-selection color. Defaults to palette.semantic.accent."
+        }
+      }
+    },
+
+    "wallpapers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default":   { "type": "string", "description": "Filename in <theme>/backgrounds/. Optional; if omitted, first entry of list is used." },
+        "placement": { "type": "string", "enum": ["fill", "fit", "center", "stretch", "tile"] },
+        "list": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["file"],
+            "additionalProperties": false,
+            "properties": {
+              "file":   { "type": "string" },
+              "credit": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+
+    "hints": {
+      "type": "object",
+      "description": "Free-form per-app structured hints. Every known app key is an object of arbitrary shape; unknown keys are ignored. Values are consumed by matching emitters.",
+      "additionalProperties": true
+    },
+
+    "overrides": {
+      "type": "object",
+      "description": "Raw fragments appended verbatim to derived files. Inline string values are appended as-is; keys ending in _path point to a sidecar file (relative to the theme dir) whose contents are appended.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+
+  "$defs": {
+    "hexColor": {
+      "type": "string",
+      "pattern": "^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$",
+      "description": "CSS-style hex color: #RGB, #RRGGBB, or #RRGGBBAA."
+    }
+  }
+}
