@@ -26,6 +26,6 @@
     zero-style = "#C1C497"
     commit-decoration-style = "#549E6A" box
     blame-code-style = syntax
-    blame-palette = #111C18 #0D1512 #23372B #509475
+    blame-palette = "#111C18 #0D1512 #23372B #509475"
 
 # --- hints ---

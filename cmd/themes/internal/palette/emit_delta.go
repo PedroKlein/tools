@@ -35,6 +35,11 @@ func emitDeltaSemantic(t *Theme, w io.Writer) error {
 	fmt.Fprintf(w, "    zero-style = %q\n", s.Fg)
 	fmt.Fprintf(w, "    commit-decoration-style = %q box\n", s.Accent)
 	fmt.Fprintf(w, "    blame-code-style = syntax\n")
-	fmt.Fprintf(w, "    blame-palette = %s %s %s %s\n", s.Bg, s.BgAlt, s.SelectionBg, s.Border)
+	// Quote the value: `#hex` starts a comment in git-config INI syntax,
+	// so `blame-palette = #111C18 ...` parses as an empty value (silently!)
+	// and delta panics with 'blame-palette must not be empty'. Wrapping
+	// the whole value in double quotes turns it into a single string that
+	// delta then splits on whitespace.
+	fmt.Fprintf(w, "    blame-palette = \"%s %s %s %s\"\n", s.Bg, s.BgAlt, s.SelectionBg, s.Border)
 	return nil
 }

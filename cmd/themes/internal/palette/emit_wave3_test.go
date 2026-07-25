@@ -33,6 +33,11 @@ func TestEmittersWave3SmokeAgainstOsakaJade(t *testing.T) {
 			"plus-style = normal",
 			"minus-style = normal",
 			`file-style = "` + th.Palette.Semantic.Accent + `"`,
+			// Regression: `#hex` starts a comment in git-config INI syntax
+			// so the palette must be a quoted single string, not raw
+			// space-separated tokens. Delta parses the quoted value by
+			// re-splitting on whitespace.
+			`blame-palette = "`,
 		} {
 			if !strings.Contains(out, want) {
 				t.Errorf("missing %q:\n%s", want, out)
