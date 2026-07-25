@@ -64,7 +64,7 @@ var registry = []Hook{
 		Kind:         KindSignal,
 		Signal:       "SIGUSR1",
 		SignalTarget: "nvim",
-		LiveApply:    true, // running nvim instances retint on scroll
+		LiveApply:    true, // running nvim instances retint via Signal SIGUSR1 autocmd + theme_loader.reload()
 	},
 	{
 		Name:      "opencode",
