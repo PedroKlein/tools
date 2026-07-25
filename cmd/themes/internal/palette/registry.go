@@ -28,5 +28,7 @@ func init() {
 		televisionEmitter{},
 		btopEmitter{},
 		opencodeEmitter{},
+		// Wave 5: macOS system (wallpaper is a resolver, not a file emit).
+		macosEmitter{},
 	)
 }
