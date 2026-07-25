@@ -135,3 +135,141 @@ func TestSetCurrentRejectsMissingDerived(t *testing.T) {
 		t.Fatal("expected error for theme with no derived/")
 	}
 }
+
+// makeThemeWithBg builds a theme dir with derived/ and optional
+// backgrounds/ files. Returns the theme dir path.
+func makeThemeWithBg(t *testing.T, root, name string, bgs ...string) string {
+	t.Helper()
+	dir := filepath.Join(root, "themes", name)
+	if err := os.MkdirAll(filepath.Join(dir, "derived"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if len(bgs) > 0 {
+		if err := os.MkdirAll(filepath.Join(dir, "backgrounds"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, bg := range bgs {
+			if err := os.WriteFile(filepath.Join(dir, "backgrounds", bg), []byte("png"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return dir
+}
+
+// TestSetCurrentRefreshesWallpaperFromMap covers d3 case (a):
+// WallpaperByTheme[newTheme] is set, so state.Wallpaper picks up that
+// value — not the stale wallpaper from the previous theme.
+func TestSetCurrentRefreshesWallpaperFromMap(t *testing.T) {
+	orig := os.Getenv("XDG_STATE_HOME")
+	tmp := t.TempDir()
+	os.Setenv("XDG_STATE_HOME", tmp)
+	t.Cleanup(func() { os.Setenv("XDG_STATE_HOME", orig) })
+
+	aDir := makeThemeWithBg(t, tmp, "a", "a1.png")
+	bDir := makeThemeWithBg(t, tmp, "b", "b1.png")
+
+	// Seed state with a active + a wallpaper for both themes.
+	if err := SetCurrent("a", aDir); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := Load()
+	s.WallpaperByTheme = map[string]string{
+		"a": filepath.Join(aDir, "backgrounds", "a1.png"),
+		"b": filepath.Join(bDir, "backgrounds", "b1.png"),
+	}
+	s.Wallpaper = s.WallpaperByTheme["a"]
+	if err := Save(*s); err != nil {
+		t.Fatal(err)
+	}
+
+	// Switch to b — state.Wallpaper should reflect b1.png, not a1.png.
+	if err := SetCurrent("b", bDir); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = Load()
+	want := filepath.Join(bDir, "backgrounds", "b1.png")
+	if s.Wallpaper != want {
+		t.Errorf("Wallpaper = %q, want %q (from WallpaperByTheme)", s.Wallpaper, want)
+	}
+}
+
+// TestSetCurrentRefreshesWallpaperFallsBackToFirstBg covers d3 case (b):
+// no WallpaperByTheme entry for the new theme, so state.Wallpaper falls
+// back to the first background file in <newDir>/backgrounds/.
+func TestSetCurrentRefreshesWallpaperFallsBackToFirstBg(t *testing.T) {
+	orig := os.Getenv("XDG_STATE_HOME")
+	tmp := t.TempDir()
+	os.Setenv("XDG_STATE_HOME", tmp)
+	t.Cleanup(func() { os.Setenv("XDG_STATE_HOME", orig) })
+
+	aDir := makeThemeWithBg(t, tmp, "a", "a1.png")
+	bDir := makeThemeWithBg(t, tmp, "b", "b-first.jpg", "b-second.jpg")
+
+	if err := SetCurrent("a", aDir); err != nil {
+		t.Fatal(err)
+	}
+	s, _ := Load()
+	s.Wallpaper = filepath.Join(aDir, "backgrounds", "a1.png")
+	s.WallpaperByTheme = map[string]string{
+		"a": s.Wallpaper,
+	}
+	if err := Save(*s); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SetCurrent("b", bDir); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = Load()
+	want := filepath.Join(bDir, "backgrounds", "b-first.jpg")
+	if s.Wallpaper != want {
+		t.Errorf("Wallpaper = %q, want %q (first bg in b/backgrounds)", s.Wallpaper, want)
+	}
+}
+
+// TestSetCurrentPreservesPreviousWallpaperInMap covers d3 case (c):
+// switching A → B → A retains A's original wallpaper because the
+// switch A → B saved A's wallpaper into WallpaperByTheme["a"] first.
+func TestSetCurrentPreservesPreviousWallpaperInMap(t *testing.T) {
+	orig := os.Getenv("XDG_STATE_HOME")
+	tmp := t.TempDir()
+	os.Setenv("XDG_STATE_HOME", tmp)
+	t.Cleanup(func() { os.Setenv("XDG_STATE_HOME", orig) })
+
+	aDir := makeThemeWithBg(t, tmp, "a", "a-picked.png", "a-first.jpg")
+	bDir := makeThemeWithBg(t, tmp, "b", "b1.png")
+
+	if err := SetCurrent("a", aDir); err != nil {
+		t.Fatal(err)
+	}
+	// User picks a NON-first wallpaper for a.
+	aPicked := filepath.Join(aDir, "backgrounds", "a-picked.png")
+	s, _ := Load()
+	s.Wallpaper = aPicked
+	if s.WallpaperByTheme == nil {
+		s.WallpaperByTheme = map[string]string{}
+	}
+	s.WallpaperByTheme["a"] = aPicked
+	if err := Save(*s); err != nil {
+		t.Fatal(err)
+	}
+
+	// A → B. B has no map entry; falls back to first bg.
+	if err := SetCurrent("b", bDir); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = Load()
+	if got := s.WallpaperByTheme["a"]; got != aPicked {
+		t.Errorf("WallpaperByTheme[a] = %q, want %q (preserved across switch)", got, aPicked)
+	}
+
+	// B → A. State.Wallpaper should restore aPicked from the map.
+	if err := SetCurrent("a", aDir); err != nil {
+		t.Fatal(err)
+	}
+	s, _ = Load()
+	if s.Wallpaper != aPicked {
+		t.Errorf("Wallpaper after B→A = %q, want %q", s.Wallpaper, aPicked)
+	}
+}

@@ -17,6 +17,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -148,10 +150,30 @@ func SetCurrent(themeName, themeDir string) error {
 	}
 	if prev != nil {
 		updated.WallpaperByTheme = prev.WallpaperByTheme
-		updated.Wallpaper = prev.Wallpaper
-		if wp, ok := prev.WallpaperByTheme[themeName]; ok {
-			updated.Wallpaper = wp
+		if updated.WallpaperByTheme == nil {
+			updated.WallpaperByTheme = map[string]string{}
 		}
+		// Preserve prev theme's wallpaper choice in the map before we
+		// overwrite state.Wallpaper. Otherwise switching A→B→A would
+		// forget A's last picked wallpaper.
+		if previousTheme != "" && previousTheme != themeName && prev.Wallpaper != "" {
+			updated.WallpaperByTheme[previousTheme] = prev.Wallpaper
+		}
+	}
+	// Choose new wallpaper: prefer per-theme memory, else first bg file
+	// in the theme's backgrounds/ dir. Never leave a stale wallpaper
+	// from the previous theme — wallpaper.sh reads state.Wallpaper
+	// directly and would otherwise never change the desktop image.
+	if wp, ok := updated.WallpaperByTheme[themeName]; ok && wp != "" {
+		updated.Wallpaper = wp
+	} else if bg := firstBackground(themeDir); bg != "" {
+		updated.Wallpaper = bg
+		updated.WallpaperByTheme[themeName] = bg
+	} else {
+		// No wallpapers available for this theme; leave empty so
+		// wallpaper.sh treats it as a no-op rather than reapplying the
+		// previous theme's file.
+		updated.Wallpaper = ""
 	}
 	if err := Save(updated); err != nil {
 		return err
@@ -199,4 +221,35 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 		return err
 	}
 	return os.Rename(tmpName, path)
+}
+
+// firstBackground returns the first image file (case-insensitive jpg,
+// jpeg, png, webp) inside <themeDir>/backgrounds/, sorted
+// alphabetically. Returns "" if the dir is missing or has no images.
+//
+// Kept in the state package because SetCurrent needs to refresh
+// state.Wallpaper when a theme swap has no WallpaperByTheme entry —
+// otherwise wallpaper.sh reads a stale path from the previous theme.
+func firstBackground(themeDir string) string {
+	bg := filepath.Join(themeDir, "backgrounds")
+	entries, err := os.ReadDir(bg)
+	if err != nil {
+		return ""
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		lower := strings.ToLower(e.Name())
+		if strings.HasSuffix(lower, ".jpg") || strings.HasSuffix(lower, ".jpeg") ||
+			strings.HasSuffix(lower, ".png") || strings.HasSuffix(lower, ".webp") {
+			names = append(names, e.Name())
+		}
+	}
+	if len(names) == 0 {
+		return ""
+	}
+	sort.Strings(names)
+	return filepath.Join(bg, names[0])
 }
