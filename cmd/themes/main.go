@@ -64,22 +64,23 @@ func parseGlobalFlags(args []string) (jsonFlag bool, cleaned []string) {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `themes — cross-app switcher across 15 apps
+	fmt.Fprintln(os.Stderr, `themes — macOS theme switcher across 15+ apps (v4)
 
 Usage:
   themes                        Open interactive picker (default)
   themes list [--json]          List installed themes
-  themes current [--json]       Print active themes state and wallpaper
-  themes set <name>             Apply the given themes bundle (headless)
-  themes apply                  Re-run hooks against the active themes (no swap)
-  themes wallpaper              Interactive wallpaper picker (grid preview)
+  themes set <name>             Apply the given theme (derive + hooks)
+  themes apply                  Re-run hooks against the active theme (no swap)
+  themes derive <name>          Regenerate <theme>/derived/* from theme.json
+  themes validate <name|path>   Validate a theme.json against the v1 schema
+  themes wallpaper [subcmd]     Wallpaper picker / cycle (see below)
+  themes import <url>           Points at Pi's /theme-import slash command
+
+Wallpaper subcommands:
+  themes wallpaper              Interactive wallpaper picker
   themes wallpaper set <path>   Set wallpaper directly
-  themes wallpaper next         Cycle to next wallpaper for active themes
-  themes wallpaper random       Random wallpaper from the active themes
-  themes install <url|name>     Import an Omarchy-marketplace bundle
-  themes import <url|path>      (same as install; both are v4 shims for /theme-import)
-  themes derive <name>          Regenerate the 14 derived files (13 apps + .macos.json)
-  themes validate <name|path>   Validate theme.json against the v1 schema
+  themes wallpaper next         Cycle to next wallpaper for active theme
+  themes wallpaper random       Random wallpaper from the active theme
 
 Global Flags:
   --json    JSON output on read commands (list, current)
@@ -88,5 +89,5 @@ Exit Codes:
   0  Success
   1  General error
   2  Ambiguous input
-  3  Themes bundle not installed / manifest missing`)
+  3  Theme not installed / manifest missing`)
 }
