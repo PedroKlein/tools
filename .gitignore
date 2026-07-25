@@ -11,3 +11,10 @@ bin/
 # OS
 .DS_Store
 Thumbs.db
+
+# Root-level go build artifacts
+/themes
+/q
+/repos
+/pia
+/todo

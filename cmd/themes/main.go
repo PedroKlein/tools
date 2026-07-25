@@ -36,6 +36,8 @@ func main() {
 		runInstall(cmdArgs)
 	case "derive":
 		runDerive(cmdArgs)
+	case "validate":
+		runValidate(cmdArgs)
 	case "help", "--help", "-h":
 		printUsage()
 	default:
@@ -74,6 +76,7 @@ Usage:
   themes wallpaper random       Random wallpaper from the active themes
   themes install <url|name>     Import an Omarchy-marketplace bundle
   themes derive <name>          Regenerate the 14 derived files (13 apps + .macos.json)
+  themes validate <name|path>   Validate theme.json against the v1 schema
 
 Global Flags:
   --json    JSON output on read commands (list, current)
