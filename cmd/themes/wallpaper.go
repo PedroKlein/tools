@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
 // WallpaperList returns all wallpaper file paths for the currently active theme.
@@ -45,24 +47,37 @@ func SetWallpaper(path string) error {
 	if !fileExists(abs) {
 		return fmt.Errorf("wallpaper not found: %s", abs)
 	}
-	s, err := LoadState()
+
+	// v4: XDG state. Update state.json's Wallpaper + WallpaperByTheme.
+	s, err := xdgstate.Load()
 	if err != nil {
 		return err
 	}
 	s.Wallpaper = abs
 	if s.Theme != "" {
+		if s.WallpaperByTheme == nil {
+			s.WallpaperByTheme = map[string]string{}
+		}
 		s.WallpaperByTheme[s.Theme] = abs
 	}
-	if err := s.Save(); err != nil {
+	if err := xdgstate.Save(*s); err != nil {
 		return err
 	}
-	// Invoke wallpaper hook with the path.
+
+	// Invoke wallpaper hook. The hook takes (theme-dir, wallpaper-path).
 	hook := hookScript("wallpaper.sh")
 	if !fileExists(hook) {
 		return nil
 	}
-	current := currentPath()
-	cmd := exec.Command(hook, current, abs)
+	target := xdgstate.CurrentTarget() // .../<theme>/derived
+	themeRoot := target
+	if themeRoot != "" {
+		themeRoot = filepath.Dir(themeRoot) // .../<theme>
+	}
+	if themeRoot == "" {
+		themeRoot = currentPath() // v3 fallback
+	}
+	cmd := exec.Command(hook, themeRoot, abs)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
@@ -89,11 +104,14 @@ func CycleWallpaper(theme string) error {
 	if len(list) < 2 {
 		return nil
 	}
-	s, err := LoadState()
+	s, err := xdgstate.Load()
 	if err != nil {
 		return err
 	}
-	current := s.WallpaperByTheme[theme]
+	current := ""
+	if s.WallpaperByTheme != nil {
+		current = s.WallpaperByTheme[theme]
+	}
 	if current == "" {
 		current = s.Wallpaper
 	}
