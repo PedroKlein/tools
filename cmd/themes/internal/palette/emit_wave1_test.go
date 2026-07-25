@@ -28,9 +28,20 @@ func TestEmittersWave1SmokeAgainstOsakaJade(t *testing.T) {
 			}
 		},
 		"tmux": func(out string) []string {
+			// G3: v3 parity — status-left has PREFIX + COPY indicators,
+			// status-right has cwd + time, pane-border-format shows
+			// CPU/RAM/battery/date at pane bottom.
 			return []string{
 				"pane-active-border-style",
 				"window-status-current-format",
+				"set -g pane-border-format",
+				"tmux-cpu/scripts/cpu_percentage.sh",
+				"tmux-cpu/scripts/ram_percentage.sh",
+				"tmux-battery/scripts/battery_percentage.sh",
+				"#{?client_prefix,",
+				"#{?pane_in_mode,",
+				"copy-mode-match-style",
+				"copy-mode-current-match-style",
 			}
 		},
 		"sketchybar": func(out string) []string {
