@@ -43,6 +43,7 @@ export FG_BRIGHT=%s
 # --- accents ---------------------------------------------------------------
 export ACCENT=%s
 export ACCENT_BRIGHT=%s
+export ACCENT_ON=%s
 export HIGHLIGHT=%s
 
 # --- semantic colors -------------------------------------------------------
@@ -58,10 +59,14 @@ export SURFACE=%s
 export SURFACE_LIGHT=%s
 
 # --- status semantics (used by battery/charging plugins) --------------------
+# FOCUSED_WORKSPACE_COLOR (not FOCUSED_WORKSPACE) — the aerospace event
+# already sets FOCUSED_WORKSPACE=<id> on the subscriber, so naming a
+# palette variable the same thing would clobber that env var and break
+# the plugin's focus check.
 export ICON=%s
 export CHARGING=%s
 export FOCUSED=%s
-export FOCUSED_WORKSPACE=%s
+export FOCUSED_WORKSPACE_COLOR=%s
 export NON_EMPTY=%s
 export BADGE=%s
 export INFO=%s
@@ -70,7 +75,7 @@ export PERCENTAGE=%s
 `,
 		sb(a.BG, barBg), sbFull(borderMuted),
 		sbFull(a.FG), sbFull(muted), sbFull(a.White),
-		sbFull(accent), sbFull(bright), sbFull(accent),
+		sbFull(accent), sbFull(bright), sbFull(YIQContrast(accent)), sbFull(accent),
 		sbFull(a.Red), sbFull(a.Yellow), sbFull(a.Cyan),
 		sbFull(teal), sbFull(jade), sbFull(a.Magenta),
 		sbFull(borderMuted), sb(borderMuted, surfaceAlpha),

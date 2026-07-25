@@ -271,6 +271,15 @@ func EmitDelta(w io.Writer, p *Palette) error {
 }
 
 // EmitFzf writes a fzf export line for FZF_DEFAULT_OPTS.
+//
+// Uses 24-bit hex colors. Rationale: tmux (a common host) translates
+// 256-color escapes (\e[38;5;NNm) via its own static tmux-256color
+// palette, so ANSI slot numbers don't respond to ghostty palette
+// reloads for tmux users. Truecolor escapes (\e[38;2;R;G;Bm) pass
+// through tmux unchanged (Tc/RGB capability), so hex is the portable
+// choice. Refresh across theme swaps is handled by the precmd hook in
+// ~/.zshrc which re-sources this file whenever .state.json's mtime
+// changes.
 func EmitFzf(w io.Writer, p *Palette) error {
 	a := p.Alacritty
 	fmt.Fprintf(w, `# fzf theme (derived; do not edit)
@@ -298,6 +307,18 @@ export FZF_DEFAULT_OPTS="
 }
 
 // EmitZshHighlight writes a zsh-syntax-highlighting theme.
+//
+// Uses 24-bit hex colors (fg=#RRGGBB). Rationale: tmux (a common host)
+// translates 256-color escapes (\e[38;5;NNm) via its own static
+// tmux-256color palette — those escapes DON'T respond to ghostty's
+// palette reload. Only truecolor escapes (\e[38;2;R;G;Bm) pass through
+// tmux unchanged (via the Tc/RGB terminfo capabilities). Hex-based
+// styles render the exact color regardless of palette state.
+//
+// The trade-off: styles are baked at shell startup, so theme swaps
+// need to explicitly re-source this file to update ZSH_HIGHLIGHT_STYLES.
+// The precmd hook in ~/.zshrc handles that: watches .state.json's mtime
+// and re-sources this file at the next prompt after a theme swap.
 func EmitZshHighlight(w io.Writer, p *Palette) error {
 	a := p.Alacritty
 	accent := p.Var("accent", "green")
