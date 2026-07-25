@@ -13,10 +13,10 @@
 
 # --- semantic ---
 [delta]
-    minus-style = normal "#FF5345"
-    minus-emph-style = normal "#FF5345"
-    plus-style = normal "#63B07A"
-    plus-emph-style = normal "#63B07A"
+    minus-style = syntax "#2d221d"
+    minus-emph-style = syntax "#582c25" bold
+    plus-style = syntax "#1a2d23"
+    plus-emph-style = syntax "#294835" bold
     file-style = "#549E6A" bold
     hunk-header-style = "#627A6C"
     hunk-header-decoration-style = "#509475" box

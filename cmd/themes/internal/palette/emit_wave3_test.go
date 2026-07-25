@@ -30,8 +30,14 @@ func TestEmittersWave3SmokeAgainstOsakaJade(t *testing.T) {
 		out := buf.String()
 		for _, want := range []string{
 			"[delta]",
-			"plus-style = normal",
-			"minus-style = normal",
+			// Regression: line backgrounds must be subtle mix(bg,diff-hue)
+			// tints, not full-strength Git.Added/Git.Removed. Full-strength
+			// paints the whole diff line in a bright red/green wash — too
+			// loud, obscures the code.
+			"minus-style = syntax",
+			"plus-style = syntax",
+			"minus-emph-style = syntax",
+			"plus-emph-style = syntax",
 			`file-style = "` + th.Palette.Semantic.Accent + `"`,
 			// Regression: `#hex` starts a comment in git-config INI syntax
 			// so the palette must be a quoted single string, not raw
@@ -42,6 +48,14 @@ func TestEmittersWave3SmokeAgainstOsakaJade(t *testing.T) {
 			if !strings.Contains(out, want) {
 				t.Errorf("missing %q:\n%s", want, out)
 			}
+		}
+		// Full-strength Git.Added/Removed MUST NOT appear as the bg value
+		// on minus/plus-style. They still appear on line-numbers-*-style
+		// (single-glyph pop against the tinted bg), so we specifically
+		// check the line-background style lines.
+		if strings.Contains(out, "minus-style = syntax \""+th.Palette.Semantic.Git.Removed+"\"") ||
+			strings.Contains(out, "plus-style = syntax \""+th.Palette.Semantic.Git.Added+"\"") {
+			t.Errorf("delta minus/plus-style uses full-strength diff hue as bg (too loud); expected mix() tint")
 		}
 	})
 
