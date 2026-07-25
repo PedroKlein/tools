@@ -41,12 +41,12 @@ func emitSketchybarSemantic(t *Theme, w io.Writer) error {
 
 	// Accents.
 	fmt.Fprintf(w, "export ACCENT=%s\n", sbFull(s.Accent))
-	// ACCENT_BRIGHT is a same-hue brighter shade of ACCENT (matches v3
-	// osaka-jade UX where the workspace border used a lighter green,
-	// not accent2 which can be a different hue entirely). Default to
-	// s.Ok which is semantically the 'bright positive' color; themes
-	// with a red accent should override via hints.sketchybar.accentBright.
-	accentBright := s.Ok
+	// ACCENT_BRIGHT is the theme's primary attention-getting color used
+	// on front_app labels and space glyphs. Default to s.Accent (the
+	// theme's actual accent — purple for catppuccin, blue for tokyonight,
+	// green for osaka-jade). Osaka-jade v3 used a brighter green than
+	// s.Accent; that theme overrides via hints.sketchybar.accentBright.
+	accentBright := s.Accent
 	if h := t.Hint("sketchybar"); h != nil {
 		if v, ok := h["accentBright"].(string); ok && v != "" {
 			accentBright = v

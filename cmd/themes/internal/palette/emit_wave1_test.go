@@ -39,6 +39,11 @@ func TestEmittersWave1SmokeAgainstOsakaJade(t *testing.T) {
 			// these variables. Any missing export makes sketchybar fall
 			// back to macOS system tint on icon.color, which is what the
 			// user reported as 'app icons don't change color'.
+			//
+			// Regression (G2): ACCENT_BRIGHT default is now s.Accent
+			// (was s.Ok which is universally green). Testdata theme is
+			// osaka-jade which overrides via hints.sketchybar.accentBright
+			// = "#63B07A" for v3 parity; assert that specific override wins.
 			return []string{
 				"export BAR_BG=0x",
 				"export BAR_BORDER=0x",
@@ -67,6 +72,10 @@ func TestEmittersWave1SmokeAgainstOsakaJade(t *testing.T) {
 				"export FOCUSED_WORKSPACE=0x",
 				"export NON_EMPTY=0x",
 				"export BADGE=0x",
+				// G2 hint override: osaka-jade sets accentBright to its
+				// v3 bright green, not the s.Accent default (which is a
+				// slightly darker green in this theme).
+				"export ACCENT_BRIGHT=0xff63b07a",
 			}
 		},
 		"aerospace": func(out string) []string {
