@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+
+	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
 // runList — "themes list [--json]".
@@ -75,16 +78,54 @@ func runSet(args []string) {
 	}
 }
 
-// runApply — "themes apply" (no swap, just re-run hooks).
+// runApply — "themes apply" (no swap, just re-derive + re-run hooks).
+//
+// v4: idempotent + dangling-symlink safe. Reads XDG state; if state.json
+// is missing or references a theme that no longer exists, falls back to
+// osaka-jade with a warning rather than dying. Always re-derives before
+// firing hooks so the derived/ dir is fresh even after a `git checkout`
+// on a clone that doesn't have generated files.
 func runApply(_ []string) {
-	s, err := LoadState()
-	if err != nil {
-		dieMsg(fmt.Sprintf("state load failed: %v", err), ExitError)
+	var themeName string
+
+	if s, err := xdgstate.Load(); err == nil && s != nil && s.Theme != "" {
+		themeName = s.Theme
+	} else if ls, err := LoadState(); err == nil && ls.Theme != "" {
+		// v3 state fallback for machines mid-migration.
+		themeName = ls.Theme
 	}
-	if s.Theme == "" {
-		dieMsg("no theme active", ExitNotFound)
+
+	if themeName != "" && !dirExists(themeDir(themeName)) {
+		fmt.Fprintf(os.Stderr, "themes apply: recorded theme %q not installed; falling back to osaka-jade\n", themeName)
+		themeName = ""
 	}
-	if err := runReloadHook(themeDir(s.Theme), nil, false); err != nil {
+	if themeName == "" {
+		if dirExists(themeDir("osaka-jade")) {
+			themeName = "osaka-jade"
+			fmt.Fprintln(os.Stderr, "themes apply: no theme recorded; defaulting to osaka-jade")
+		} else {
+			dieMsg("no theme active and osaka-jade fallback not installed", ExitNotFound)
+		}
+	}
+
+	dir := themeDir(themeName)
+	if !fileExists(filepath.Join(dir, "theme.json")) {
+		dieMsg(fmt.Sprintf("theme %s has no theme.json (v3 format); run /theme-import to migrate", themeName), ExitError)
+	}
+
+	// Re-derive so derived/ is fresh even on a stale worktree.
+	if _, err := deriveThemeV4(dir); err != nil {
+		dieMsg(err.Error(), ExitError)
+	}
+
+	// Repair the XDG `current` symlink if missing/dangling.
+	if xdgstate.CurrentTarget() == "" {
+		if err := xdgstate.SetCurrent(themeName, dir); err != nil {
+			dieMsg(err.Error(), ExitError)
+		}
+	}
+
+	if err := runReloadHook(dir, nil, false); err != nil {
 		dieMsg(err.Error(), ExitError)
 	}
 }
