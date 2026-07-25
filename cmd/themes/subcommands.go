@@ -131,8 +131,19 @@ func runApply(_ []string) {
 		dieMsg(err.Error(), ExitError)
 	}
 
-	// Repair the XDG `current` symlink if missing/dangling.
+	// Repair the XDG `current` symlink if missing/dangling, OR if it
+	// resolves to a different theme than state.json records. Silent
+	// drift between state.json.Theme and the symlink was the root cause
+	// of 'nothing changes when I switch themes' — hooks reading through
+	// .current/* see one theme, state.json says another.
 	if xdgstate.CurrentTarget() == "" {
+		if err := xdgstate.SetCurrent(themeName, dir); err != nil {
+			dieMsg(err.Error(), ExitError)
+		}
+	} else if xdgstate.IsDrifted() {
+		fmt.Fprintf(os.Stderr,
+			"themes apply: drift detected — state.Theme=%q but current symlink resolves to %q; re-aligning\n",
+			themeName, xdgstate.CurrentTargetTheme())
 		if err := xdgstate.SetCurrent(themeName, dir); err != nil {
 			dieMsg(err.Error(), ExitError)
 		}

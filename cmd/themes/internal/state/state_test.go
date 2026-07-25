@@ -231,6 +231,50 @@ func TestSetCurrentRefreshesWallpaperFallsBackToFirstBg(t *testing.T) {
 // TestSetCurrentPreservesPreviousWallpaperInMap covers d3 case (c):
 // switching A → B → A retains A's original wallpaper because the
 // switch A → B saved A's wallpaper into WallpaperByTheme["a"] first.
+// TestIsDriftedDetectsMismatch covers the D4 root-cause: after a bad
+// TUI live-preview ESC, symlink and state.json can silently diverge.
+// IsDrifted() must catch this so runApply can re-align.
+func TestIsDriftedDetectsMismatch(t *testing.T) {
+	orig := os.Getenv("XDG_STATE_HOME")
+	tmp := t.TempDir()
+	os.Setenv("XDG_STATE_HOME", tmp)
+	t.Cleanup(func() { os.Setenv("XDG_STATE_HOME", orig) })
+
+	aDir := makeThemeWithBg(t, tmp, "a")
+	bDir := makeThemeWithBg(t, tmp, "b")
+
+	// Fresh install: no state, no symlink — not drifted.
+	if IsDrifted() {
+		t.Fatal("fresh install: IsDrifted should be false")
+	}
+
+	// Aligned state: IsDrifted false.
+	if err := SetCurrent("a", aDir); err != nil {
+		t.Fatal(err)
+	}
+	if IsDrifted() {
+		t.Fatal("aligned: IsDrifted should be false")
+	}
+
+	// Skew: rewrite state.json.Theme without touching the symlink.
+	s, _ := Load()
+	s.Theme = "b"
+	if err := Save(*s); err != nil {
+		t.Fatal(err)
+	}
+	if !IsDrifted() {
+		t.Fatal("skewed: IsDrifted should be true (state says b, symlink still points at a)")
+	}
+
+	// Realign: SetCurrent(b) fixes both sides.
+	if err := SetCurrent("b", bDir); err != nil {
+		t.Fatal(err)
+	}
+	if IsDrifted() {
+		t.Fatal("re-aligned via SetCurrent: IsDrifted should be false")
+	}
+}
+
 func TestSetCurrentPreservesPreviousWallpaperInMap(t *testing.T) {
 	orig := os.Getenv("XDG_STATE_HOME")
 	tmp := t.TempDir()

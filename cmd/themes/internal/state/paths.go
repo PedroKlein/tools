@@ -60,3 +60,39 @@ func CurrentTarget() string {
 	}
 	return target
 }
+
+// CurrentTargetTheme returns the theme name the `current` symlink
+// resolves to (basename of the theme dir), or "" if the symlink is
+// missing/dangling. Handles the v4 layout where `current` targets
+// <themeDir>/derived; the returned name is the parent (<themeDir>'s
+// basename).
+func CurrentTargetTheme() string {
+	target := CurrentTarget()
+	if target == "" {
+		return ""
+	}
+	if filepath.Base(target) == "derived" {
+		target = filepath.Dir(target)
+	}
+	return filepath.Base(target)
+}
+
+// IsDrifted reports whether state.json.Theme disagrees with the theme
+// the `current` symlink resolves to. When true, hooks reading through
+// `.current/*` see files from a different theme than state records —
+// which manifests as "nothing changes when I switch themes" for every
+// hook downstream. Callers should call SetCurrent to re-align.
+//
+// Returns false when either side is empty (fresh install, missing
+// symlink) — no drift claim can be made.
+func IsDrifted() bool {
+	s, err := Load()
+	if err != nil || s == nil || s.Theme == "" {
+		return false
+	}
+	target := CurrentTargetTheme()
+	if target == "" {
+		return false
+	}
+	return s.Theme != target
+}
