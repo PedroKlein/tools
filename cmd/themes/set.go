@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/PedroKlein/tools/cmd/themes/internal/reload"
+	"github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
 // ThemeInfo is the JSON representation of a listed theme.
@@ -139,22 +140,20 @@ func Set(name string, opts SetOptions) error {
 		return &SetError{Kind: ExitError, Msg: fmt.Sprintf("theme dir missing theme.json: %s", dir)}
 	}
 
-	// Serialize concurrent theme swaps via a POSIX flock on a well-known
-	// lock file. Rapid `themes set` invocations from the TUI's live-apply
-	// path can otherwise interleave state writes and end up with the
-	// .current symlink pointing at one theme and .state.json describing
-	// another. flock is released as soon as the symlink + state.json are
-	// on disk (Omarchy's pattern) so the app-retint phase runs OUTSIDE the
-	// critical section — a concurrent caller can start its own symlink
-	// swap while we're still firing hooks.
+	// v4 flow (P3.2):
+	//   1. derive under lock (produces <dir>/derived/)
+	//   2. atomically swap XDG state (state.json + `current` symlink)
+	//   3. release lock
+	//   4. fire hooks with <dir>/derived/ as argv[1]
+	//
+	// The lock keeps concurrent `themes set` calls from interleaving the
+	// derive+swap phases. Hooks run OUTSIDE the critical section so
+	// long-running retint chains never serialize a follow-up swap
+	// (Omarchy's pattern).
 	unlock, err := acquireSetLock()
 	if err != nil {
 		return err
 	}
-	// Note: no `defer unlock()` — we release explicitly after state.Save()
-	// below. Deferring would keep the lock held until RunAll finishes,
-	// serializing the entire swap chain and defeating the whole point of
-	// this Omarchy-borrowed optimization.
 	lockReleased := false
 	defer func() {
 		if !lockReleased {
@@ -162,48 +161,19 @@ func Set(name string, opts SetOptions) error {
 		}
 	}()
 
-	prev := readCurrentTarget()
-	if err := swapSymlink(currentPath(), name); err != nil {
-		return err
+	if _, err := deriveThemeV4(dir); err != nil {
+		return &SetError{Kind: ExitError, Msg: fmt.Sprintf("derive %s: %v", name, err)}
 	}
-	// Update state.
-	s, err := LoadState()
-	if err != nil {
-		return err
-	}
-	s.Theme = name
-	s.ChangedAt = nowUTC()
-	// Resolve wallpaper for this theme. Precedence:
-	//   1. remembered per-themes wallpaper (state.WallpaperByTheme)
-	//   2. any file in the theme's backgrounds/ (picked deterministically)
-	//   3. leave state.Wallpaper alone (no wallpaper change on swap)
-	if w := s.WallpaperByTheme[name]; w != "" && fileExists(w) {
-		s.Wallpaper = w
-	} else if pick := firstWallpaper(dir); pick != "" {
-		s.Wallpaper = pick
-		s.WallpaperByTheme[name] = pick
-	}
-	if err := s.Save(); err != nil {
-		// Best-effort rollback of the symlink so on-disk state and .current agree.
-		if prev != "" {
-			_ = swapSymlink(currentPath(), prev)
-		}
-		return err
+	if err := state.SetCurrent(name, dir); err != nil {
+		return &SetError{Kind: ExitError, Msg: err.Error()}
 	}
 
-	// Critical section done — release the lock so a concurrent `themes
-	// set` can begin its own symlink+state phase while we're firing hooks.
-	// The next caller may complete before our RunAll returns; that's fine,
-	// last-writer-wins on the symlink is the intended semantics.
 	unlock()
 	lockReleased = true
 
 	if opts.SkipHooksAll {
 		return nil
 	}
-	// Commit=false is our heuristic for live-apply scroll (the TUI
-	// sets it during scroll preview). Pass through to the hook layer so
-	// macos-system.sh can skip its disruptive UI restart.
 	return runReloadHook(dir, opts.SkipHooks, !opts.Commit)
 }
 
