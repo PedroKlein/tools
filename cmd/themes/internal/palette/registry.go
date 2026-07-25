@@ -18,5 +18,10 @@ func init() {
 		piEmitter{},
 		fzfEmitter{},
 		zshHighlightEmitter{},
+		// Wave 3: git tools + pagers.
+		deltaEmitter{},
+		batEmitter{},
+		lazygitEmitter{},
+		ghDashEmitter{},
 	)
 }
