@@ -112,6 +112,17 @@ func TestEmittersWave2SmokeAgainstOsakaJade(t *testing.T) {
 		if len(missing) > 0 {
 			t.Errorf("pi.colors missing %d required keys: %v", len(missing), missing)
 		}
+
+		// Regression (F1): v3 kept these 4 slots as empty strings so
+		// Pi's runtime picks its own semantic defaults (usually 'fg'
+		// but sometimes brighter for titles). Emitting 'fg' overrides
+		// that logic with a flat foreground color, making titles blend
+		// with body text. Match v3: 4 specific slots must be "".
+		for _, k := range []string{"text", "userMessageText", "customMessageText", "toolTitle"} {
+			if v, ok := colors[k].(string); !ok || v != "" {
+				t.Errorf("pi.colors.%s = %q, want \"\" (Pi runtime picks a context-aware default)", k, v)
+			}
+		}
 	})
 
 	t.Run("fzf", func(t *testing.T) {

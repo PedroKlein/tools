@@ -27,7 +27,7 @@
 		"borderMuted": "surface1",
 		"customMessageBg": "mantle",
 		"customMessageLabel": "purple",
-		"customMessageText": "fg",
+		"customMessageText": "",
 		"dim": "muted",
 		"error": "red",
 		"mdCode": "bright",
@@ -52,7 +52,7 @@
 		"syntaxString": "#63B07A",
 		"syntaxType": "#549E6A",
 		"syntaxVariable": "cyan",
-		"text": "fg",
+		"text": "",
 		"thinkingHigh": "bright",
 		"thinkingLow": "blue",
 		"thinkingMedium": "accent",
@@ -67,9 +67,9 @@
 		"toolOutput": "muted",
 		"toolPendingBg": "mantle",
 		"toolSuccessBg": "mantle",
-		"toolTitle": "fg",
+		"toolTitle": "",
 		"userMessageBg": "surface0",
-		"userMessageText": "fg",
+		"userMessageText": "",
 		"warning": "yellow"
 	}
 }
