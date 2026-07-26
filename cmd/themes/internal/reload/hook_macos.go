@@ -108,28 +108,37 @@ func hookMacOS(ctx context.Context, themeDir string) error {
 			"AppleHighlightColor", "-string", s.HighlightRGB).Run()
 	}
 
-	// --- Propagate via distributed notifications -------------------------
-	// Preferred over the killall cascade because they don't touch running
-	// processes. Cocoa apps observing NSGlobalDomain repaint on the next
-	// runloop tick (typically <100ms). Missing `notifyutil` (rare) falls
-	// through with a soft warning — accent still applies on next open.
+	// --- Propagate --------------------------------------------------------
 	//
-	// The two notifications must be POSTED BARE (no com.apple.* prefix).
-	// CoreUI expects both to fire on any accent-variant change:
-	//   AppleColorPreferencesChangedNotification
-	//   AppleAquaColorVariantChanged
-	// Source: Chromium's theme_helper_mac.mm (Robert Sesek) + Alex Chan
-	// https://alexwlchan.net/2022/changing-the-macos-accent-colour/
+	// Two mechanisms fire together because notification-only propagation
+	// is not reliable across every macOS version + Cocoa app matrix.
+	// See docs/plans/themes-live-switch-research-2.md § 6.3 for the
+	// investigation trail.
 	//
-	// Even both notifications together only reach apps that observe them
-	// (Finder, Safari, TextEdit, most Cocoa apps do; Electron apps often
-	// don't, and pick up on next launch). If accent isn't visibly
-	// changing on YOUR system, run `killall Dock SystemUIServer` manually
-	// — this hook intentionally avoids that cascade because it stalls
-	// rapid consecutive swaps.
+	// 1. Bare distributed notifications (Chromium + Alex Chan's recipe):
+	//    - AppleColorPreferencesChangedNotification
+	//    - AppleAquaColorVariantChanged
+	//    Most Cocoa apps that observe accent redraw on these.
+	//
+	// 2. killall Dock + SystemUIServer:
+	//    Restarts the two auto-restarting system daemons that carry the
+	//    menu bar clock, Dock icons, and keyboard input indicators. They
+	//    hold no user work and auto-relaunch via launchd in ~200ms. This
+	//    is what System Preferences itself does when you change accent.
+	//
+	//    EXPLICITLY NOT KILLED: Finder (modals stall), cfprefsd (cascade
+	//    multiplier that trips WindowServer sync on rapid swaps).
+	//
+	// Users who want notify-only can set THEMES_MACOS_NOTIFY_ONLY=1 to
+	// disable the killall path. Rapid consecutive swap regressions cite
+	// that env var.
 	if _, err := exec.LookPath("notifyutil"); err == nil {
 		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleColorPreferencesChangedNotification").Run()
 		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleAquaColorVariantChanged").Run()
+	}
+	if os.Getenv("THEMES_MACOS_NOTIFY_ONLY") == "" {
+		_ = exec.CommandContext(ctx, "killall", "Dock").Run()
+		_ = exec.CommandContext(ctx, "killall", "SystemUIServer").Run()
 	}
 	return nil
 }
