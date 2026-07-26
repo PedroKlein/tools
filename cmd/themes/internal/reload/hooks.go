@@ -143,10 +143,14 @@ var registry = []Hook{
 		Fn:         hookTmux,
 	},
 	{
-		Name:      "wallpaper",
-		Kind:      KindExternal,
-		Script:    "wallpaper.sh",
-		LiveApply: true, // desktop is visible on scroll
+		// Ported to Go in b5. Prefers desktoppr (no Automation prompt,
+		// all Spaces) with fallback to osascript System Events, then
+		// Finder. Linux: swww then hyprctl. RunPreview=false because
+		// wallpaper change on scroll is disruptive.
+		Name:       "wallpaper",
+		RunPreview: false,
+		RunCommit:  true,
+		Fn:         hookWallpaper,
 	},
 }
 
