@@ -1,17 +1,19 @@
 # `themes`
 
-Cross-app terminal theme switcher. One command swaps colors and wallpaper across 15 apps at once.
+macOS theme switcher for Ghostty, tmux, Neovim, Sketchybar, Aerospace, Starship, Pi, and related CLI tools.
 
 **Companion CLI to** [`pia`](../pia), [`repos`](../repos), [`q`](../q), [`todo`](../todo). Shares the same conventions:
 
-- stdlib + charm (Bubble Tea) — no other deps
-- `--json` on read commands (`list`, `current`, `doctor`)
+- stdlib + Charm (Bubble Tea) dependencies only
+- `--json` on read commands (`list`, `current`)
 - exit codes: 0=success, 1=error, 2=ambiguous, 3=not-found
 - table-driven tests, white-box package
 
 ## Overview
 
-The switcher is state-driven, not symlink-driven. `~/.config/themes/.state.json` is the source of truth; `~/.config/themes/.current` (symlink) is derived. Switching a theme is an atomic symlink swap (`renameat` on Unix) followed by parallel per-app reload hooks.
+Themes are source-driven. Each theme directory contains one `theme.json`; `themes derive` writes app-specific files under `<theme>/derived/`. Runtime state lives under `$XDG_STATE_HOME/themes/` (`~/.local/state/themes/` by default), where `current` points at the active theme root. Consumers read generated files through `~/.config/themes/.current/derived/<file>`.
+
+Switching a theme derives missing/stale files, atomically swaps the XDG `current` symlink, updates `state.json`, and runs per-app reload hooks.
 
 **Full design and per-app include recipes:** [`~/dotfiles/docs/themes.md`](https://github.com/PedroKlein/dotfiles/blob/main/docs/themes.md).
 
@@ -21,23 +23,23 @@ The switcher is state-driven, not symlink-driven. `~/.config/themes/.state.json`
 go install github.com/PedroKlein/tools/cmd/themes@latest
 ```
 
-Wire the includes into your dotfiles per `docs/themes.md`, then run `setup_shared.sh` (or equivalent) to create the runtime symlinks. `themes doctor` will tell you what's not wired.
+Wire the dotfiles with `setup_mac.sh`; it creates the XDG state directory, `.current` compatibility symlink, and per-app theme links.
 
 ## Usage
 
 ```
-theme                        Open interactive picker (default)
+themes                        Open interactive picker (default)
 themes list [--json]          List installed themes
 themes current [--json]       Print current theme and wallpaper
-themes set <name>             Apply theme (headless)
-themes back                   Revert to previous theme
-themes apply                  Re-run hooks against current theme (no swap)
+themes set <name>             Apply the given theme (derive + hooks)
+themes apply                  Re-run hooks against the active theme
+themes derive <name>          Regenerate <theme>/derived/* from theme.json
+themes validate <name|path>   Validate a theme.json against the v1 schema
 themes wallpaper              Interactive wallpaper picker
 themes wallpaper set <path>   Set wallpaper directly
+themes wallpaper next         Cycle to next wallpaper for active theme
 themes wallpaper random       Random wallpaper from current theme
-themes doctor [--json]        Verify wiring across all apps
-themes install <url>          Import an Omarchy-marketplace theme
-themes derive <name>          Regenerate the 13 derived files for a theme
+themes import <url>           Points at Pi's /theme-import slash command
 ```
 
 ## Structure
@@ -45,17 +47,15 @@ themes derive <name>          Regenerate the 13 derived files for a theme
 ```
 cmd/themes/
 ├── main.go            dispatcher, flag parsing
-├── paths.go           XDG paths, symlink names
-├── exitcodes.go       0/1/2/3
-├── json.go            --json helpers
-├── state.go           .state.json read/write with fsync + rename
-├── set.go             atomic symlink swap + hook dispatch
-├── doctor.go          per-app wiring probes
-├── wallpaper.go       wallpaper picker + setter
-├── install.go         themes install / derive (calls .bin/theme-derive)
-├── subcommands.go     list/current/set/back/apply/doctor/wallpaper CLI glue
-├── tui.go             Bubbletea picker (P3.4)
-└── theme_test.go      table-driven tests
+├── paths.go           config paths, atomic file helper
+├── set.go             derive + XDG symlink swap + hook dispatch
+├── derive*.go         theme.json → derived/* pipeline
+├── validate.go        JSON Schema validation
+├── wallpaper*.go      wallpaper list/set/cycle flows
+├── tui.go             Bubble Tea picker
+├── internal/state/    XDG state.json + current symlink
+├── internal/palette/  theme model, loader, emitters, baselines
+└── internal/reload/   per-app reload hooks
 ```
 
 ## Related

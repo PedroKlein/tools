@@ -12,7 +12,7 @@ import (
 	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
-// hookWallpaper ports .hooks/wallpaper.sh to Go.
+// hookWallpaper applies the wallpaper recorded in XDG state for themeDir.
 //
 // Resolves the wallpaper via (in order):
 //  1. state.json .wallpaper (via internal/state.Load)
@@ -28,9 +28,20 @@ import (
 //   - swww img
 //   - hyprctl hyprpaper reload
 //
-// Preview: false (crossfade on scroll is disruptive). Commit: true.
+// Commit resolves state.Wallpaper first. PreviewWallpaper below uses preview
+// resolution so a selected theme can show its wallpaper without writing
+// state.json.
+//
+// PreviewWallpaper applies themeDir's wallpaper using preview resolution.
+// It is called by the picker after a debounce instead of participating in
+// the synchronous RunPreview hook wave.
+func PreviewWallpaper(ctx context.Context, themeDir string) error {
+	return hookWallpaper(context.WithValue(ctx, liveApplyContextKey{}, true), themeDir)
+}
+
+// hookWallpaper applies the wallpaper selected by commit or preview mode.
 func hookWallpaper(ctx context.Context, themeDir string) error {
-	wp := resolveWallpaper(themeDir)
+	wp := resolveWallpaperForMode(themeDir, isLiveApply(ctx))
 	if wp == "" {
 		return nil
 	}
@@ -48,14 +59,34 @@ func hookWallpaper(ctx context.Context, themeDir string) error {
 	}
 }
 
-// resolveWallpaper implements the 2-step lookup: XDG state.json, then
+// resolveWallpaper implements the commit lookup: XDG state.json, then
 // first-image-in-backgrounds.
 func resolveWallpaper(themeDir string) string {
+	return resolveWallpaperForMode(themeDir, false)
+}
+
+func resolveWallpaperForMode(themeDir string, liveApply bool) string {
+	if liveApply {
+		return resolveWallpaperPreview(themeDir)
+	}
 	// 1. XDG state.
 	if s, err := xdgstate.Load(); err == nil && s != nil && s.Wallpaper != "" {
 		return s.Wallpaper
 	}
 	// 2. First background in the theme dir.
+	return firstWallpaperInTheme(themeDir)
+}
+
+func resolveWallpaperPreview(themeDir string) string {
+	if s, err := xdgstate.Load(); err == nil && s != nil {
+		if wp := s.WallpaperByTheme[themeName(themeDir)]; wp != "" {
+			return wp
+		}
+	}
+	return firstWallpaperInTheme(themeDir)
+}
+
+func firstWallpaperInTheme(themeDir string) string {
 	bg := filepath.Join(themeDir, "backgrounds")
 	entries, err := os.ReadDir(bg)
 	if err != nil {

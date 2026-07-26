@@ -164,7 +164,7 @@ type ShadowEffect struct {
 	Offset     [2]float64 `json:"offset"`
 }
 
-// Macos is macOS system integration (consumed by .hooks/macos-system.sh).
+// Macos is macOS system integration consumed by the Go macOS reload hook.
 type Macos struct {
 	// Appearance mirrors top-level Appearance unless the theme overrides it.
 	Appearance string `json:"appearance"`

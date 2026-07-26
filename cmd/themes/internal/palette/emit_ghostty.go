@@ -28,7 +28,7 @@ import (
 // ARRANGEMENT A (docs/plans/theme-transparency.md): background-opacity
 // and background-blur ARE emitted per theme. The user's
 // ~/.config/ghostty/config sets safe fallbacks (0.85 / 20) BEFORE it
-// includes ~/.config/themes/.current/ghostty.conf via `config-file`.
+// includes ~/.config/themes/.current/derived/ghostty.conf via `config-file`.
 // Ghostty's config chain semantics: the theme file's values override
 // the fallbacks, so per-theme opacity/blur wins.
 //

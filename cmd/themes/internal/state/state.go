@@ -43,8 +43,7 @@ type State struct {
 	// the `current` symlink minus /derived/).
 	Theme string `json:"theme"`
 
-	// PreviousTheme is what Theme was before the last switch. Enables
-	// `themes back` in future revisions (out of P3 scope).
+	// PreviousTheme is what Theme was before the last switch.
 	PreviousTheme string `json:"previous_theme,omitempty"`
 
 	// Wallpaper is the absolute path to the currently applied wallpaper.
@@ -203,16 +202,16 @@ func SetCurrent(themeName, themeDir string) error {
 	}
 	// Choose new wallpaper: prefer per-theme memory, else first bg file
 	// in the theme's backgrounds/ dir. Never leave a stale wallpaper
-	// from the previous theme — wallpaper.sh reads state.Wallpaper
-	// directly and would otherwise never change the desktop image.
+	// from the previous theme; the Go wallpaper hook reads state.Wallpaper
+	// directly.
 	if wp, ok := updated.WallpaperByTheme[themeName]; ok && wp != "" {
 		updated.Wallpaper = wp
 	} else if bg := firstBackground(themeDir); bg != "" {
 		updated.Wallpaper = bg
 		updated.WallpaperByTheme[themeName] = bg
 	} else {
-		// No wallpapers available for this theme; leave empty so
-		// wallpaper.sh treats it as a no-op rather than reapplying the
+		// No wallpapers available for this theme; leave empty so the Go
+		// wallpaper hook treats it as a no-op rather than reapplying the
 		// previous theme's file.
 		updated.Wallpaper = ""
 	}
@@ -270,8 +269,8 @@ func writeAtomic(path string, data []byte, mode os.FileMode) error {
 // alphabetically. Returns "" if the dir is missing or has no images.
 //
 // Kept in the state package because SetCurrent needs to refresh
-// state.Wallpaper when a theme swap has no WallpaperByTheme entry —
-// otherwise wallpaper.sh reads a stale path from the previous theme.
+// state.Wallpaper when a theme swap has no WallpaperByTheme entry;
+// otherwise the Go wallpaper hook reads a stale path from the previous theme.
 func firstBackground(themeDir string) string {
 	bg := filepath.Join(themeDir, "backgrounds")
 	entries, err := os.ReadDir(bg)

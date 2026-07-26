@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
 // TestResolveWallpaperFallsBackToFirstBackground covers the second
@@ -28,6 +30,69 @@ func TestResolveWallpaperFallsBackToFirstBackground(t *testing.T) {
 	want := filepath.Join(bg, "0-a.png")
 	if got != want {
 		t.Errorf("resolver = %q, want %q", got, want)
+	}
+}
+
+func TestResolveWallpaperPreviewUsesSelectedThemeMemory(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmp)
+
+	theme := filepath.Join(tmp, "themes", "next-theme")
+	bg := filepath.Join(theme, "backgrounds")
+	if err := os.MkdirAll(bg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	remembered := filepath.Join(bg, "remembered.jpg")
+	fallback := filepath.Join(bg, "fallback.jpg")
+	old := filepath.Join(tmp, "old.jpg")
+	for _, p := range []string{remembered, fallback, old} {
+		if err := os.WriteFile(p, []byte("data"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := xdgstate.Save(xdgstate.State{
+		Theme:            "old-theme",
+		Wallpaper:        old,
+		WallpaperByTheme: map[string]string{"next-theme": remembered},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := resolveWallpaperForMode(theme, true); got != remembered {
+		t.Fatalf("preview wallpaper = %q, want selected theme memory %q", got, remembered)
+	}
+	if got := resolveWallpaperForMode(theme, false); got != old {
+		t.Fatalf("commit wallpaper = %q, want state wallpaper %q", got, old)
+	}
+}
+
+func TestResolveWallpaperPreviewFallsBackToSelectedThemeBackground(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", tmp)
+
+	theme := filepath.Join(tmp, "themes", "next-theme")
+	bg := filepath.Join(theme, "backgrounds")
+	if err := os.MkdirAll(bg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first := filepath.Join(bg, "0-first.jpg")
+	second := filepath.Join(bg, "1-second.jpg")
+	old := filepath.Join(tmp, "old.jpg")
+	for _, p := range []string{first, second, old} {
+		if err := os.WriteFile(p, []byte("data"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := xdgstate.Save(xdgstate.State{
+		Theme:            "old-theme",
+		Wallpaper:        old,
+		WallpaperByTheme: map[string]string{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := resolveWallpaperForMode(theme, true); got != first {
+		t.Fatalf("preview wallpaper = %q, want first selected theme background %q", got, first)
 	}
 }
 

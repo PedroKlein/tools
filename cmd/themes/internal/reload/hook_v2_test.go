@@ -3,6 +3,8 @@ package reload
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -38,6 +40,39 @@ func TestFilterHooksHonorsNewShape(t *testing.T) {
 	wantCommit := []string{"legacy-preview", "legacy-commit", "new-both", "new-commit-only"}
 	if !equalUnordered(commitNames, wantCommit) {
 		t.Errorf("commit filter got %v, want %v", commitNames, wantCommit)
+	}
+}
+
+func TestRunAllPassesLiveApplyContext(t *testing.T) {
+	orig := registry
+	t.Cleanup(func() { registry = orig })
+	tmp := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	themeDir := filepath.Join(tmp, "themes", "test-theme")
+	if err := os.MkdirAll(themeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("test-theme", filepath.Join(tmp, "themes", ".current")); err != nil {
+		t.Fatal(err)
+	}
+
+	var got bool
+	registry = []Hook{{
+		Name:       "probe",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn: func(ctx context.Context, _ string) error {
+			got = isLiveApply(ctx)
+			return nil
+		},
+	}}
+	live := true
+	results := RunAll(context.Background(), themeDir, Options{LiveApply: &live, SkipUserHooks: true})
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("RunAll results = %#v", results)
+	}
+	if !got {
+		t.Fatal("RunAll did not pass live-apply mode to hook context")
 	}
 }
 

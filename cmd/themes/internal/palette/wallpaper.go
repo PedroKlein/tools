@@ -21,9 +21,8 @@ import (
 // Returns the absolute path and (Wallpapers.Placement || "fill").
 // If nothing resolves, returns "" with a non-nil error.
 //
-// This function is invoked by the macos-system.sh + wallpaper.sh hooks
-// (via the CLI). It never touches state itself; the caller decides
-// whether to persist the choice.
+// The Go wallpaper hook invokes this resolver through the CLI. It never
+// touches state itself; the caller decides whether to persist the choice.
 func ResolveWallpaper(t *Theme, override string) (path, placement string, err error) {
 	if t == nil {
 		return "", "", fmt.Errorf("ResolveWallpaper: nil theme")

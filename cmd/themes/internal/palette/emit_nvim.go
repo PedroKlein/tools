@@ -13,7 +13,7 @@ import (
 // v4 nvim emitter — writes a LazyVim-compatible plugin spec table.
 //
 // The user's configs-shared/.config/nvim/lua/plugins/colorscheme.lua
-// reads ~/.config/themes/.current/neovim.lua and pipes the returned
+// reads ~/.config/themes/.current/derived/neovim.lua and pipes the returned
 // table to LazyVim's plugin loader. So this emitter MUST:
 //
 //  1. Write a file named `neovim.lua` (not `nvim.lua`).

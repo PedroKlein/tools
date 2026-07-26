@@ -1,15 +1,16 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 
+	"github.com/PedroKlein/tools/cmd/themes/internal/reload"
 	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
@@ -38,7 +39,46 @@ func WallpaperList(theme string) ([]string, error) {
 	return out, nil
 }
 
-// SetWallpaper writes the wallpaper path into state and invokes hooks/wallpaper.sh.
+var applyWallpaperHook = func(themeRoot string) error {
+	liveApply := false
+	skip := map[string]bool{}
+	for _, h := range reload.Registry() {
+		if h.Name != "wallpaper" {
+			skip[h.Name] = true
+		}
+	}
+	results := reload.RunAll(context.Background(), themeRoot, reload.Options{
+		SkipHooks:     skip,
+		LiveApply:     &liveApply,
+		SkipUserHooks: true,
+		Verbose:       os.Getenv("THEME_VERBOSE") != "",
+		Stderr:        os.Stderr,
+	})
+	var errs []error
+	for _, result := range results {
+		if result.Err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", result.Name, result.Err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+var previewWallpaperHook = func(themeRoot string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), wallpaperPreviewTimeout)
+	defer cancel()
+	return reload.PreviewWallpaper(ctx, themeRoot)
+}
+
+func PreviewWallpaper(theme string) error {
+	if theme == "" {
+		return nil
+	}
+	return previewWallpaperHook(themeDir(theme))
+}
+
+// SetWallpaper writes the wallpaper path into XDG state and applies the Go
+// wallpaper hook. The old shell hook was deleted when in-repo hooks moved
+// into cmd/themes/internal/reload.
 func SetWallpaper(path string) error {
 	abs, err := filepath.Abs(path)
 	if err != nil {
@@ -48,7 +88,6 @@ func SetWallpaper(path string) error {
 		return fmt.Errorf("wallpaper not found: %s", abs)
 	}
 
-	// v4: XDG state. Update state.json's Wallpaper + WallpaperByTheme.
 	s, err := xdgstate.Load()
 	if err != nil {
 		return err
@@ -64,23 +103,19 @@ func SetWallpaper(path string) error {
 		return err
 	}
 
-	// Invoke wallpaper hook. The hook takes (theme-dir, wallpaper-path).
-	hook := hookScript("wallpaper.sh")
-	if !fileExists(hook) {
-		return nil
-	}
-	target := xdgstate.CurrentTarget() // .../<theme>/derived
-	themeRoot := target
-	if themeRoot != "" {
-		themeRoot = filepath.Dir(themeRoot) // .../<theme>
+	themeRoot := ""
+	if s.Theme != "" {
+		themeRoot = themeDir(s.Theme)
+	} else if target := xdgstate.CurrentTarget(); target != "" {
+		themeRoot = target
+		if filepath.Base(themeRoot) == "derived" {
+			themeRoot = filepath.Dir(themeRoot)
+		}
 	}
 	if themeRoot == "" {
-		themeRoot = currentPath() // v3 fallback
+		return nil
 	}
-	cmd := exec.Command(hook, themeRoot, abs)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return applyWallpaperHook(themeRoot)
 }
 
 // RandomWallpaperFor returns a random wallpaper path for a theme, or "" if none.
@@ -89,8 +124,7 @@ func RandomWallpaperFor(theme string) string {
 	if err != nil || len(list) == 0 {
 		return ""
 	}
-	//nolint:gosec // theme picker doesn't need crypto RNG
-	return list[rand.Intn(len(list))]
+	return list[rand.IntN(len(list))]
 }
 
 // CycleWallpaper picks the next wallpaper after the currently-active one

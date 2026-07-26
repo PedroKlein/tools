@@ -79,11 +79,11 @@ var registry = []Hook{
 		LiveApply: false, // opencode reads tui.json on next launch
 	},
 	{
-		Name:      "sketchybar",
-		Kind:      KindCommand,
-		Cmd:       "sketchybar",
-		Args:      []string{"--reload"},
-		LiveApply: true, // visible immediately in the top bar
+		Name:       "sketchybar",
+		RunPreview: false,
+		RunCommit:  true,
+		OS:         "darwin",
+		Fn:         hookSketchybar,
 	},
 	{
 		Name:      "television",
@@ -113,8 +113,8 @@ var registry = []Hook{
 		// defaults NSGlobalDomain (accent + aqua variant + highlight) and
 		// AppleInterfaceStyle. Mode via osascript. Propagates via notifyutil
 		// -p (AppleColorPreferencesChangedNotification +
-		// NSSystemColorsDidChangeNotification) INSTEAD of the killall
-		// cascade. Darwin only.
+		// AppleAquaColorVariantChanged + NSSystemColorsDidChangeNotification)
+		// plus Dock/SystemUIServer restart on commit for complete repaint.
 		Name:       "macos-system",
 		RunPreview: false, // accent flash on scroll is jarring
 		RunCommit:  true,
@@ -142,8 +142,9 @@ var registry = []Hook{
 	{
 		// Ported to Go in b5. Prefers desktoppr (no Automation prompt,
 		// all Spaces) with fallback to osascript System Events, then
-		// Finder. Linux: swww then hyprctl. RunPreview=false because
-		// wallpaper change on scroll is disruptive.
+		// Finder. Linux: swww then hyprctl. TUI wallpaper preview calls
+		// PreviewWallpaper directly after a debounce so cursor movement
+		// does not block on macOS wallpaper setters.
 		Name:       "wallpaper",
 		RunPreview: false,
 		RunCommit:  true,
@@ -152,6 +153,28 @@ var registry = []Hook{
 }
 
 // --- Inline hook implementations ------------------------------------------
+
+func hookSketchybar(ctx context.Context, _ string) error {
+	if _, err := exec.LookPath("sketchybar"); err != nil {
+		return nil
+	}
+	configDir := filepath.Join(filepath.Dir(themesRoot()), "sketchybar")
+	rc := filepath.Join(configDir, "sketchybarrc")
+	if _, err := os.Stat(rc); err != nil {
+		return nil
+	}
+
+	if err := exec.CommandContext(ctx, "sketchybar", "--reload").Run(); err != nil {
+		return fmt.Errorf("hookSketchybar: reset bar: %w", err)
+	}
+	cmd := exec.CommandContext(ctx, rc)
+	cmd.Env = append(os.Environ(), "CONFIG_DIR="+configDir)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("hookSketchybar: run %s: %w: %s", rc, err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
 
 // reloadOpencode rewrites ~/.config/opencode/tui.json's `theme` field to
 // match the current theme's opencode.name file.

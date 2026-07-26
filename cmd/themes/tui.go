@@ -5,12 +5,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/PedroKlein/tools/cmd/themes/internal/palette"
 	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
+)
+
+const (
+	wallpaperPreviewDelay   = 200 * time.Millisecond
+	wallpaperPreviewTimeout = 2 * time.Second
 )
 
 // runTUI is the interactive theme picker.
@@ -25,7 +31,7 @@ import (
 //	└────────────────────────┘ └──────────────────────────────────┘
 //	 ↑↓ navigate  ⏎ confirm  esc revert  L toggle-live  q quit
 //
-// Live-apply on scroll (P3.5) is added in a follow-up commit.
+// Scroll preview applies fast color hooks immediately and debounces wallpaper.
 func runTUI(_ []string) {
 	runTUIWith("")
 }
@@ -86,6 +92,16 @@ func runTUIWith(focusTheme string) {
 	}
 }
 
+type wallpaperPreviewMsg struct {
+	seq   int
+	theme string
+}
+
+type wallpaperPreviewDoneMsg struct {
+	seq int
+	err error
+}
+
 type pickerModel struct {
 	themes    []ThemeInfo
 	cursor    int
@@ -107,6 +123,9 @@ type pickerModel struct {
 	// Styles derived from the currently-active theme's palette. Rebuilt
 	// after every preview swap so the picker itself follows the theme.
 	styles pickerStyles
+	// wallpaperPreviewSeq invalidates stale debounce messages and stale
+	// setter completions when the cursor moves again or the picker exits.
+	wallpaperPreviewSeq int
 }
 
 // pickerStyles holds all lipgloss styles the TUI uses. Rebuilt via
@@ -178,6 +197,10 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// Reserved: dynamic sizing later.
 		return m, nil
+	case wallpaperPreviewMsg:
+		return m.handleWallpaperPreview(msg)
+	case wallpaperPreviewDoneMsg:
+		return m.handleWallpaperPreviewDone(msg)
 	}
 	_ = msg
 	return m, nil
@@ -191,15 +214,17 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// toggled off after preview, drift, etc.). Always compare current
 		// state to startedAt — NOT the cursor position, which can differ
 		// from state after scroll-around.
+		m.cancelWallpaperPreview()
 		m.revertIfNeeded()
 		m.quitting = true
 		return m, tea.Quit
 	case "esc":
+		m.cancelWallpaperPreview()
 		m.revertIfNeeded()
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
-		// Commit.
+		m.cancelWallpaperPreview()
 		if err := Set(m.themes[m.cursor].Name, SetOptions{Commit: true}); err != nil {
 			m.err = err
 		}
@@ -207,22 +232,26 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "L":
 		m.liveApply = !m.liveApply
+		m.cancelWallpaperPreview()
 		return m, nil
 	case "w":
 		// Open the wallpaper subpicker for the currently-active theme (the
 		// one whose colors are on screen), not the one under cursor. Tunnel
 		// the intent via openWallpaperAfter — tea.Sequence(tea.Quit, cmd)
 		// doesn't work because Quit terminates the loop before cmd runs.
+		m.cancelWallpaperPreview()
 		m.openWallpaperAfter = true
 		m.quitting = true
 		return m, tea.Quit
 	case "i":
 		// Open the install-from-URL prompt. Same tunnel pattern as `w`.
+		m.cancelWallpaperPreview()
 		m.openInstallAfter = true
 		m.quitting = true
 		return m, tea.Quit
 	case "s":
 		// Open the settings panel for the active theme. Same tunnel pattern.
+		m.cancelWallpaperPreview()
 		m.openSettingsAfter = true
 		m.quitting = true
 		return m, tea.Quit
@@ -267,10 +296,10 @@ func (m *pickerModel) revertIfNeeded() {
 	// Preview does NOT write state.json, so activeState() is not the
 	// right signal. Compare against the current symlink target.
 	current := xdgCurrentThemeName()
-	if current == "" || current == m.startedAt {
-		return
+	if current != "" && current != m.startedAt {
+		_ = Set(m.startedAt, SetOptions{Commit: false, SkipHooks: []string{"wallpaper"}})
 	}
-	_ = Set(m.startedAt, SetOptions{Commit: false})
+	_ = applyWallpaperHook(themeDir(m.startedAt))
 }
 
 func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {
@@ -284,25 +313,48 @@ func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {
 	return m.applyPreview()
 }
 
-// applyPreview is called on cursor moves. When live-apply is on it fires
-// Set(name, {Commit:false}) synchronously in the Bubbletea Update loop.
-// Preview is fast enough (no derive, no state.json, only LiveApply=true
-// hooks: OSC + pi + sketchybar + tmux + ghostty + nvim + wallpaper) that
-// the debounce timer that used to live in live.go is unnecessary.
-//
-// Rebuilds the TUI's own styles from the new palette so the picker
-// follows the theme as we scroll.
+func (m *pickerModel) cancelWallpaperPreview() {
+	m.wallpaperPreviewSeq++
+}
+
+func (m *pickerModel) scheduleWallpaperPreview(theme string) tea.Cmd {
+	m.wallpaperPreviewSeq++
+	seq := m.wallpaperPreviewSeq
+	return tea.Tick(wallpaperPreviewDelay, func(time.Time) tea.Msg {
+		return wallpaperPreviewMsg{seq: seq, theme: theme}
+	})
+}
+
+func (m *pickerModel) handleWallpaperPreview(msg wallpaperPreviewMsg) (tea.Model, tea.Cmd) {
+	if msg.seq != m.wallpaperPreviewSeq || !m.liveApply || m.quitting || m.themes[m.cursor].Name != msg.theme {
+		return m, nil
+	}
+	return m, func() tea.Msg {
+		return wallpaperPreviewDoneMsg{seq: msg.seq, err: PreviewWallpaper(msg.theme)}
+	}
+}
+
+func (m *pickerModel) handleWallpaperPreviewDone(msg wallpaperPreviewDoneMsg) (tea.Model, tea.Cmd) {
+	// Preview errors are intentionally non-fatal; commit still reports hook
+	// failures through the normal Set path.
+	_ = msg
+	return m, nil
+}
+
+// applyPreview is called on cursor moves. It keeps fast retint hooks in the
+// synchronous Set path, but schedules wallpaper preview after cursor idle so
+// macOS wallpaper setters do not block Bubble Tea key handling.
 func (m *pickerModel) applyPreview() (tea.Model, tea.Cmd) {
 	if !m.liveApply {
 		return m, nil
 	}
 	name := m.themes[m.cursor].Name
-	_ = Set(name, SetOptions{Commit: false})
+	_ = Set(name, SetOptions{Commit: false, SkipHooks: []string{"wallpaper"}})
 	m.reloadStyles()
 	for i := range m.themes {
 		m.themes[i].Current = m.themes[i].Name == name
 	}
-	return m, nil
+	return m, m.scheduleWallpaperPreview(name)
 }
 
 func (m *pickerModel) View() string {

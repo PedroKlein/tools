@@ -1,6 +1,9 @@
 package reload
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -15,7 +18,7 @@ func TestBuildOSCBlobStandardKeys(t *testing.T) {
 	th.Palette.Semantic.Bg = "#00ff00"
 	th.Palette.Semantic.Cursor = "#0000ff"
 	// Fill the 16 ansi slots with a distinguishable pattern.
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		th.Palette.Ansi[i] = "#010203" // arbitrary but non-empty
 	}
 
@@ -46,6 +49,141 @@ func TestBuildOSCBlobStandardKeys(t *testing.T) {
 	}
 }
 
+func TestBuildOSCBlobWithoutBackground(t *testing.T) {
+	th := &palette.Theme{}
+	th.Palette.Semantic.Fg = "#ff0000"
+	th.Palette.Semantic.Bg = "#00ff00"
+	th.Palette.Semantic.Cursor = "#0000ff"
+	for i := range 16 {
+		th.Palette.Ansi[i] = "#010203"
+	}
+
+	got := string(buildOSCBlobWithOptions(th, oscOptions{IncludeBackground: false}))
+
+	if strings.Contains(got, "\x1b]11;") {
+		t.Errorf("blob emitted OSC 11 background while IncludeBackground=false")
+	}
+	if strings.Contains(got, "bg=00ff00") {
+		t.Errorf("blob emitted SetColors bg while IncludeBackground=false")
+	}
+	if !strings.Contains(got, "\x1b]10;#ff0000\x07") {
+		t.Errorf("blob missing OSC 10 fg frame")
+	}
+	if !strings.Contains(got, "\x1b]4;15;#010203\x07") {
+		t.Errorf("blob missing OSC 4;15 frame")
+	}
+}
+
+func TestBuildOSCBlobBroadcastOmitsBackground(t *testing.T) {
+	th := &palette.Theme{}
+	th.Palette.Semantic.Fg = "#ff0000"
+	th.Palette.Semantic.Bg = "#00ff00"
+	th.Palette.Semantic.Cursor = "#0000ff"
+	for i := range 16 {
+		th.Palette.Ansi[i] = "#010203"
+	}
+
+	got := string(buildOSCBlobWithOptions(th, oscOptions{IncludeBackground: false}))
+	if strings.Contains(got, "\x1b]11;") || strings.Contains(got, "bg=00ff00") {
+		t.Fatalf("broadcast OSC emitted background: %q", got)
+	}
+}
+
+func TestFilterTTYsSkipsTmuxClientTTYs(t *testing.T) {
+	ttys := []string{"/dev/ttys001", "/dev/ttys002", "/dev/ttys003"}
+	skip := map[string]struct{}{"/dev/ttys002": {}}
+	got := filterTTYs(ttys, skip)
+	want := []string{"/dev/ttys001", "/dev/ttys003"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("filterTTYs = %v, want %v", got, want)
+	}
+}
+
+func TestCommitOSCTargetsSendsBackgroundToTmuxClientsOnly(t *testing.T) {
+	direct := []string{"/dev/ttys001"}
+	clients := map[string]struct{}{"/dev/ttys002": {}}
+	panes := []string{"/dev/ttys003"}
+
+	full, noBackground := commitOSCTargets(direct, clients, panes)
+	if got, want := strings.Join(full, ","), "/dev/ttys001,/dev/ttys002"; got != want {
+		t.Fatalf("full-background targets = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(noBackground, ","), "/dev/ttys003"; got != want {
+		t.Fatalf("no-background targets = %q, want %q", got, want)
+	}
+}
+
+func TestHookOSCPreviewInsideTmuxWritesBackgroundToClientTTY(t *testing.T) {
+	tmp := t.TempDir()
+	paneTTY := filepath.Join(tmp, "pane-tty")
+	clientTTY := filepath.Join(tmp, "client-tty")
+	if err := os.WriteFile(paneTTY, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(clientTTY, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origTTYPath := controllingTTYPath
+	controllingTTYPath = paneTTY
+	t.Cleanup(func() { controllingTTYPath = origTTYPath })
+	origClientTTY := currentTmuxClientTTY
+	currentTmuxClientTTY = func(context.Context) string { return clientTTY }
+	t.Cleanup(func() { currentTmuxClientTTY = origClientTTY })
+	t.Setenv("TMUX", "/tmp/themes-test-tmux,123,0")
+
+	ctx := context.WithValue(context.Background(), liveApplyContextKey{}, true)
+	themeDir := filepath.Join("..", "palette", "testdata", "osaka-jade")
+	if err := hookOSC(ctx, themeDir); err != nil {
+		t.Fatalf("hookOSC returned error: %v", err)
+	}
+
+	paneBytes, err := os.ReadFile(paneTTY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientBytes, err := os.ReadFile(clientTTY)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pane := string(paneBytes)
+	client := string(clientBytes)
+	if strings.Contains(pane, "\x1b]11;") || strings.Contains(pane, "bg=111C18") {
+		t.Fatalf("tmux pane tty received background OSC: %q", pane)
+	}
+	if !strings.Contains(client, "\x1b]11;#111C18\x07") || !strings.Contains(client, "bg=111C18") {
+		t.Fatalf("tmux client tty did not receive background OSC: %q", client)
+	}
+}
+
+func TestHookOSCPreviewWritesControllingTTYWithoutBackgroundInTmux(t *testing.T) {
+	ttyPath := filepath.Join(t.TempDir(), "tty")
+	if err := os.WriteFile(ttyPath, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	origTTYPath := controllingTTYPath
+	controllingTTYPath = ttyPath
+	t.Cleanup(func() { controllingTTYPath = origTTYPath })
+	t.Setenv("TMUX", "/tmp/themes-test-tmux,123,0")
+
+	ctx := context.WithValue(context.Background(), liveApplyContextKey{}, true)
+	themeDir := filepath.Join("..", "palette", "testdata", "osaka-jade")
+	if err := hookOSC(ctx, themeDir); err != nil {
+		t.Fatalf("hookOSC returned error: %v", err)
+	}
+
+	gotBytes, err := os.ReadFile(ttyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(gotBytes)
+	if !strings.Contains(got, "\x1b]10;#C1C497\x07") {
+		t.Fatalf("preview did not write foreground OSC to controlling tty: %q", got)
+	}
+	if strings.Contains(got, "\x1b]11;") || strings.Contains(got, "bg=111C18") {
+		t.Fatalf("preview inside tmux emitted background OSC: %q", got)
+	}
+}
+
 // TestBuildOSCBlobSetColorsFormat verifies the iTerm2 payload contract:
 // key=value pairs comma-separated, hex WITHOUT leading '#'.
 func TestBuildOSCBlobSetColorsFormat(t *testing.T) {
@@ -53,7 +191,7 @@ func TestBuildOSCBlobSetColorsFormat(t *testing.T) {
 	th.Palette.Semantic.Fg = "#ff0000"
 	th.Palette.Semantic.Bg = "#00ff00"
 	th.Palette.Semantic.Cursor = "" // omitted → should fall back to fg
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		th.Palette.Ansi[i] = "#abcdef"
 	}
 

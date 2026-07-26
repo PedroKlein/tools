@@ -10,7 +10,7 @@ import (
 )
 
 // TestEmittersWave5MacosAgainstOsakaJade — macos.json emitter reads
-// theme.Macos and produces the schema the macos-system.sh hook expects.
+// theme.Macos and produces the schema the Go macOS reload hook expects.
 func TestEmittersWave5MacosAgainstOsakaJade(t *testing.T) {
 	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {

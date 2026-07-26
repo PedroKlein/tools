@@ -19,21 +19,19 @@ type macosSidecar struct {
 	HighlightRGB string `json:"highlight_rgb"`
 }
 
-// hookMacOS ports .hooks/macos-system.sh to Go.
+// hookMacOS applies the derived macos.json payload to macOS system settings.
 //
 // Writes `defaults NSGlobalDomain AppleAccentColor / AppleHighlightColor /
 // AppleInterfaceStyle` + AppleAquaColorVariant (1 or 6 for Graphite),
-// then posts two Darwin distributed notifications via `notifyutil -p`:
+// then posts Darwin distributed notifications via `notifyutil -p`:
 //
 //   - AppleColorPreferencesChangedNotification — accent + highlight
-//   - NSSystemColorsDidChangeNotification      — Tahoe (macOS 26) forward-compat
+//   - AppleAquaColorVariantChanged            — CoreUI aqua/accent repaint
+//   - NSSystemColorsDidChangeNotification     — Tahoe (macOS 26) forward-compat
 //
-// The notifyutil posts replace the historical `killall Dock SystemUIServer
-// Finder cfprefsd` cascade. That cascade froze the reload orchestrator
-// on rapid consecutive theme swaps because macOS serializes SIGKILL
-// under WindowServer's window server sync. The distributed notifications
-// deliver equivalent repaint to Cocoa apps in <100 ms without any process
-// churn.
+// The hook intentionally does not restart Dock/SystemUIServer/Finder/cfprefsd:
+// those cascades can stall WindowServer during rapid consecutive swaps. Some
+// cached UI chrome may repaint on next login or a manual restart.
 //
 // Mode (dark/light) is set via osascript because `defaults write` alone
 // on AppleInterfaceStyle does not fire the appearance-change notification.
@@ -110,35 +108,14 @@ func hookMacOS(ctx context.Context, themeDir string) error {
 
 	// --- Propagate --------------------------------------------------------
 	//
-	// Two mechanisms fire together because notification-only propagation
-	// is not reliable across every macOS version + Cocoa app matrix.
-	// See docs/plans/themes-live-switch-research-2.md § 6.3 for the
-	// investigation trail.
-	//
-	// 1. Bare distributed notifications (Chromium + Alex Chan's recipe):
-	//    - AppleColorPreferencesChangedNotification
-	//    - AppleAquaColorVariantChanged
-	//    Most Cocoa apps that observe accent redraw on these.
-	//
-	// 2. killall Dock + SystemUIServer:
-	//    Restarts the two auto-restarting system daemons that carry the
-	//    menu bar clock, Dock icons, and keyboard input indicators. They
-	//    hold no user work and auto-relaunch via launchd in ~200ms. This
-	//    is what System Preferences itself does when you change accent.
-	//
-	//    EXPLICITLY NOT KILLED: Finder (modals stall), cfprefsd (cascade
-	//    multiplier that trips WindowServer sync on rapid swaps).
-	//
-	// Users who want notify-only can set THEMES_MACOS_NOTIFY_ONLY=1 to
-	// disable the killall path. Rapid consecutive swap regressions cite
-	// that env var.
+	// Notification-only propagation avoids Dock/SystemUIServer/Finder/cfprefsd
+	// restart cascades that can stall WindowServer during rapid consecutive
+	// swaps. Most Cocoa apps that observe accent redraw on these notifications;
+	// cached UI chrome can wait for next login/manual restart.
 	if _, err := exec.LookPath("notifyutil"); err == nil {
 		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleColorPreferencesChangedNotification").Run()
 		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleAquaColorVariantChanged").Run()
-	}
-	if os.Getenv("THEMES_MACOS_NOTIFY_ONLY") == "" {
-		_ = exec.CommandContext(ctx, "killall", "Dock").Run()
-		_ = exec.CommandContext(ctx, "killall", "SystemUIServer").Run()
+		_ = exec.CommandContext(ctx, "notifyutil", "-p", "NSSystemColorsDidChangeNotification").Run()
 	}
 	return nil
 }

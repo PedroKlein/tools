@@ -37,6 +37,11 @@ type Options struct {
 	// os.Stderr when nil. Callers running under a TUI can pass a file to
 	// keep hook errors from corrupting the visible frame.
 	Stderr io.Writer
+
+	// SkipUserHooks omits the final user .hooks/*.sh wave. Used by narrow
+	// commands such as `themes wallpaper set`, where running the full user
+	// post-theme hook chain would be surprising.
+	SkipUserHooks bool
 }
 
 // RunAll runs every registered hook against themeDir concurrently.
@@ -56,10 +61,10 @@ func RunAll(ctx context.Context, themeDir string, opts Options) []Result {
 	if skip == nil {
 		skip = SkipList()
 	}
-// live defaults to false (commit-mode) unless the caller explicitly
-// overrides it. Historically we also read THEME_LIVE_APPLY from the
-// environment; a4 removed that plumbing because Set is now the sole
-// LiveApply-parameter carrier.
+	// live defaults to false (commit-mode) unless the caller explicitly
+	// overrides it. Historically we also read THEME_LIVE_APPLY from the
+	// environment; a4 removed that plumbing because Set is now the sole
+	// LiveApply-parameter carrier.
 	live := false
 	if opts.LiveApply != nil {
 		live = *opts.LiveApply
@@ -99,7 +104,7 @@ func RunAll(ctx context.Context, themeDir string, opts Options) []Result {
 		go func(i int, h Hook) {
 			defer wg.Done()
 			start := time.Now()
-			hctx, cancel := context.WithTimeout(ctx, hookTimeout(h, timeout))
+			hctx, cancel := context.WithTimeout(context.WithValue(ctx, liveApplyContextKey{}, live), hookTimeout(h, timeout))
 			defer cancel()
 
 			err := runOne(hctx, h, themeDir, stderr)
@@ -118,6 +123,10 @@ func RunAll(ctx context.Context, themeDir string, opts Options) []Result {
 		}(i, h)
 	}
 	wg.Wait()
+	if opts.SkipUserHooks {
+		return results
+	}
+
 	// Final wave: user-supplied .hooks/*.sh files. Kept outside the
 	// registry so users don't need to modify the tools binary to add a
 	// hook. Runs sequentially in filename order for determinism; each

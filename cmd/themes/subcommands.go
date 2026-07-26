@@ -12,10 +12,6 @@ import (
 // state file — single source of truth after the v3 shim was removed in a3.
 // Returns a zero-value State (empty Theme) when nothing is recorded,
 // never an error — callers decide how to handle empty.
-//
-// Historically fell back to a v3 flat file at ~/.config/themes/.state.json;
-// that path was covered by migrate-themes-v4.sh and migrate-themes-
-// flatten.sh. Any install that hasn't run those is unsupported.
 func activeState() xdgstate.State {
 	if s, err := xdgstate.Load(); err == nil && s != nil {
 		return *s

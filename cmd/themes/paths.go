@@ -7,8 +7,8 @@ import (
 
 // Layout constants. All paths inside ~/.config/themes/ are prefixed with a
 // dot when they carry switcher metadata; theme directories themselves are
-// bare names at the top level. State lives at $XDG_STATE_HOME/themes/
-// (see internal/state) — not at ~/.config/themes/.state.json anymore.
+// bare names at the top level. Runtime state lives at $XDG_STATE_HOME/themes/
+// (see internal/state).
 const (
 	currentLink = ".current"
 	hooksDir    = ".hooks"

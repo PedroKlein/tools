@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// v4 macos emitter — writes macos.json for the macos-system.sh hook.
+// v4 macos emitter — writes macos.json for the Go macOS reload hook.
 //
 // Reads theme.Macos.{appearance,accent,highlight} which the loader has
 // already default-filled from top-level appearance + palette.semantic.accent.
