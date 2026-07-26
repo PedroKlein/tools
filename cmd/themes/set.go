@@ -134,14 +134,21 @@ type SetOptions struct {
 	SkipHooksAll bool
 }
 
-// Set switches the active theme to name. Rules:
-//   - Verifies the theme exists.
-//   - Atomically swaps ~/.config/themes/.current to point at <name>.
-//   - Updates ~/.config/themes/.state.json (theme + wallpaper).
-//   - Dispatches hooks/reload-all.sh with THEME_SKIP_HOOKS honored.
+// Set switches the active theme to name.
 //
-// The symlink swap is atomic via os.Rename of a temporary link (renameat semantics
-// on Unix). On failure to write state, the symlink is rolled back to the prior target.
+// Two tiers, controlled by opts.Commit:
+//
+//	Commit=true  — full path: derive (cache-aware) → swap symlink →
+//	             write state.json → fire every hook (LiveApply true+false).
+//	             Used by CLI `themes set` and TUI Enter.
+//
+//	Commit=false — preview tier: swap symlink only → fire LiveApply=true
+//	             hooks. No derive, no state.json write. Used by TUI cursor
+//	             scroll. Preview reads whatever's in <theme>/derived/;
+//	             hooks tolerate missing files gracefully.
+//
+// The symlink swap is atomic via os.Rename of a temporary link
+// (renameat semantics on Unix).
 func Set(name string, opts SetOptions) error {
 	dir := themeDir(name)
 	if !dirExists(dir) {
@@ -151,16 +158,9 @@ func Set(name string, opts SetOptions) error {
 		return &SetError{Kind: ExitError, Msg: fmt.Sprintf("theme dir missing theme.json: %s", dir)}
 	}
 
-	// v4 flow (P3.2):
-	//   1. derive under lock (produces <dir>/derived/)
-	//   2. atomically swap XDG state (state.json + `current` symlink)
-	//   3. release lock
-	//   4. fire hooks with <dir>/derived/ as argv[1]
-	//
 	// The lock keeps concurrent `themes set` calls from interleaving the
 	// derive+swap phases. Hooks run OUTSIDE the critical section so
-	// long-running retint chains never serialize a follow-up swap
-	// (Omarchy's pattern).
+	// long-running retint chains never serialize a follow-up swap.
 	unlock, err := acquireSetLock()
 	if err != nil {
 		return err
@@ -172,11 +172,21 @@ func Set(name string, opts SetOptions) error {
 		}
 	}()
 
-	if _, err := deriveThemeV4(dir); err != nil {
-		return &SetError{Kind: ExitError, Msg: fmt.Sprintf("derive %s: %v", name, err)}
-	}
-	if err := state.SetCurrent(name, dir); err != nil {
-		return &SetError{Kind: ExitError, Msg: err.Error()}
+	if opts.Commit {
+		// Full path.
+		if _, err := deriveThemeV4(dir); err != nil {
+			return &SetError{Kind: ExitError, Msg: fmt.Sprintf("derive %s: %v", name, err)}
+		}
+		if err := state.SetCurrent(name, dir); err != nil {
+			return &SetError{Kind: ExitError, Msg: err.Error()}
+		}
+	} else {
+		// Preview: symlink only. No derive (a2 stamp cache would be a no-op
+		// anyway on cached themes; strict-no-derive keeps scroll snappy
+		// even on freshly-imported themes). No state.json write.
+		if err := state.SwapCurrentSymlink(dir); err != nil {
+			return &SetError{Kind: ExitError, Msg: err.Error()}
+		}
 	}
 
 	unlock()
@@ -262,12 +272,11 @@ func runReloadHook(themeAbsDir string, skip []string, liveApply bool) error {
 // triggers a new one. Zero cost when the caller passes
 // context.Background().
 //
-// NOTE: THEME_LIVE_APPLY is set/unset around reload.RunAll and is racy
-// under overlapping in-process reloads. The settings pane serializes
-// reloads via cancel-in-flight; callers who spawn overlapping reloads
-// must not rely on THEME_LIVE_APPLY toggling. External hooks that read
-// this env observe whichever value the last set-caller wrote at exec
-// time — acceptable trade-off, documented at plan D3.
+// LiveApply is now a pure in-process signal to reload.RunAll — no env
+// var is set. Previously we exported THEME_LIVE_APPLY for external hooks
+// to observe; a4 removed that plumbing because (a) it was racy under
+// overlapping in-process reloads and (b) hooks now branch on their own
+// Hook.LiveApply flag from the registry.
 func runReloadHookCtx(ctx context.Context, themeAbsDir string, skip []string, liveApply bool) error {
 	skipMap := map[string]bool{}
 	for _, s := range skip {
@@ -278,7 +287,7 @@ func runReloadHookCtx(ctx context.Context, themeAbsDir string, skip []string, li
 	// Merge THEME_SKIP_HOOKS from the env, even when the caller passed an
 	// explicit skip list. This preserves the user's documented escape
 	// hatch (e.g. rapid-swap without wallpaper) across all Set entry
-	// points — CLI, TUI commit, TUI live-apply, pi extension.
+	// points — CLI, TUI commit, TUI preview, pi extension.
 	for name := range reload.SkipList() {
 		skipMap[name] = true
 	}
@@ -286,7 +295,7 @@ func runReloadHookCtx(ctx context.Context, themeAbsDir string, skip []string, li
 	var stderr io.Writer = os.Stderr
 	var closer io.Closer
 	if liveApply {
-		logPath := filepath.Join(os.TempDir(), "theme-live-apply.log")
+		logPath := filepath.Join(os.TempDir(), "theme-preview.log")
 		if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
 			stderr = f
 			closer = f
@@ -296,15 +305,6 @@ func runReloadHookCtx(ctx context.Context, themeAbsDir string, skip []string, li
 	}
 	if closer != nil {
 		defer closer.Close()
-	}
-
-	// LIVE_APPLY is a signal external scripts (macos-system.sh) may read.
-	// Set it in the process env so exec.Command inherits it.
-	if liveApply {
-		_ = os.Setenv("THEME_LIVE_APPLY", "1")
-		defer os.Unsetenv("THEME_LIVE_APPLY")
-	} else {
-		_ = os.Unsetenv("THEME_LIVE_APPLY")
 	}
 
 	reload.RunAll(ctx, themeAbsDir, reload.Options{

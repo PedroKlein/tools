@@ -64,7 +64,7 @@ type Hook struct {
 	Kind Kind
 
 	// LiveApply controls whether the hook fires during picker scroll
-	// preview (THEME_LIVE_APPLY=1). false means commit-only.
+	// preview (opts.LiveApply=true). false means commit-only.
 	LiveApply bool
 
 	// Timeout is the maximum time RunAll waits for this hook. Default 4s
@@ -132,11 +132,9 @@ func SkipList() map[string]bool {
 	return out
 }
 
-// LiveApplyMode reports whether the caller is a picker scroll preview
-// (THEME_LIVE_APPLY=1). Hooks with LiveApply=false are skipped in this mode.
-func LiveApplyMode() bool {
-	return os.Getenv("THEME_LIVE_APPLY") == "1"
-}
+// LiveApplyMode was deleted in a4 along with THEME_LIVE_APPLY env
+// plumbing. Callers now pass Options.LiveApply explicitly (or leave it
+// nil for commit mode). Kept as a documentation anchor.
 
 // FilterHooks returns the subset of the registry that should fire for
 // this invocation. Applies skip list, live-apply mode, and OS gating.

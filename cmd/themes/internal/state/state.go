@@ -122,6 +122,34 @@ func saveTo(s State, path string) error {
 	return writeAtomic(path, buf, 0o600)
 }
 
+// SwapCurrentSymlink atomically re-points the `current` symlink at
+// themeDir WITHOUT touching state.json. Used by the picker's preview
+// tier: cursor scrolls swap the visible-surface target so hooks retint
+// but state remains what runInteractive started with. Only Commit
+// (which calls SetCurrent) mutates state.json.
+//
+// Precondition: <themeDir>/derived/ must exist. Callers who don't want
+// this check can dial down by inlining the os.Symlink + Rename dance.
+func SwapCurrentSymlink(themeDir string) error {
+	if themeDir == "" {
+		return fmt.Errorf("state.SwapCurrentSymlink: theme dir required")
+	}
+	if _, err := os.Stat(filepath.Join(themeDir, "derived")); err != nil {
+		return fmt.Errorf("state.SwapCurrentSymlink: derived dir missing (%s); run 'themes derive' first", themeDir)
+	}
+	link := currentPath()
+	tmp := link + ".tmp"
+	_ = os.Remove(tmp)
+	if err := os.Symlink(themeDir, tmp); err != nil {
+		return fmt.Errorf("state.SwapCurrentSymlink: create temp symlink: %w", err)
+	}
+	if err := os.Rename(tmp, link); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("state.SwapCurrentSymlink: rename symlink: %w", err)
+	}
+	return nil
+}
+
 // SetCurrent atomically re-points the `current` symlink at the given
 // theme's root directory and updates state.json (Theme becomes
 // themeName; PreviousTheme becomes the previous Theme).

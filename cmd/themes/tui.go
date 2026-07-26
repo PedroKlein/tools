@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/PedroKlein/tools/cmd/themes/internal/palette"
+	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
 // runTUI is the interactive theme picker.
@@ -103,10 +104,8 @@ type pickerModel struct {
 	openInstallAfter bool
 	// openSettingsAfter tunnels the `s` intent to launch the settings panel.
 	openSettingsAfter bool
-	// P3.5 live-apply debouncer wires in here.
-	pending *debouncer
 	// Styles derived from the currently-active theme's palette. Rebuilt
-	// after every theme swap so the picker itself follows the theme.
+	// after every preview swap so the picker itself follows the theme.
 	styles pickerStyles
 }
 
@@ -179,9 +178,8 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		// Reserved: dynamic sizing later.
 		return m, nil
-	case liveApplyMsg:
-		return m.doLiveApply(msg.name)
 	}
+	_ = msg
 	return m, nil
 }
 
@@ -241,43 +239,70 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.move(1)
 	case "home", "g":
 		m.cursor = 0
-		return m.maybeSchedule()
+		return m.applyPreview()
 	case "end", "G":
 		m.cursor = len(m.themes) - 1
-		return m.maybeSchedule()
+		return m.applyPreview()
 	}
 	return m, nil
 }
 
-// revertIfNeeded restores the pre-TUI theme when live-preview has left
-// state pointing at anything other than startedAt. Compares CURRENT
-// STATE (not cursor position) so scrolling around then landing back
-// on startedAt still triggers the revert if the debouncer fired for an
-// intermediate theme.
+// xdgCurrentThemeName returns the basename of the theme the XDG
+// `current` symlink points at, or "" on any error. Used by
+// revertIfNeeded to check the visible surface state without touching
+// state.json (which preview never writes).
+func xdgCurrentThemeName() string {
+	return xdgstate.CurrentTargetTheme()
+}
+
+// revertIfNeeded restores the pre-TUI theme when preview has left the
+// symlink pointing at anything other than startedAt. Compares the
+// CURRENT SYMLINK TARGET (not state.json, which preview never writes)
+// so scrolling around then landing back on startedAt still triggers the
+// revert if an intermediate theme's preview retinted the surfaces.
 func (m *pickerModel) revertIfNeeded() {
 	if m.startedAt == "" {
 		return
 	}
-	s := activeState()
-	if s.Theme == "" || s.Theme == m.startedAt {
+	// Preview does NOT write state.json, so activeState() is not the
+	// right signal. Compare against the current symlink target.
+	current := xdgCurrentThemeName()
+	if current == "" || current == m.startedAt {
 		return
-	}
-	// Cancel any pending debounced live-apply so it doesn't re-set
-	// state to the previewed theme AFTER we revert.
-	if m.pending != nil {
-		m.pending.cancel()
 	}
 	_ = Set(m.startedAt, SetOptions{Commit: false})
 }
 
-func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {	m.cursor += delta
+func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {
+	m.cursor += delta
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
 	if m.cursor >= len(m.themes) {
 		m.cursor = len(m.themes) - 1
 	}
-	return m.maybeSchedule()
+	return m.applyPreview()
+}
+
+// applyPreview is called on cursor moves. When live-apply is on it fires
+// Set(name, {Commit:false}) synchronously in the Bubbletea Update loop.
+// Preview is fast enough (no derive, no state.json, only LiveApply=true
+// hooks: OSC + pi + sketchybar + tmux + ghostty + nvim + wallpaper) that
+// the debounce timer that used to live in live.go is unnecessary.
+//
+// Rebuilds the TUI's own styles from the new palette so the picker
+// follows the theme as we scroll.
+func (m *pickerModel) applyPreview() (tea.Model, tea.Cmd) {
+	if !m.liveApply {
+		return m, nil
+	}
+	name := m.themes[m.cursor].Name
+	_ = Set(name, SetOptions{Commit: false})
+	m.reloadStyles()
+	for i := range m.themes {
+		m.themes[i].Current = m.themes[i].Name == name
+	}
+	return m, nil
 }
 
 func (m *pickerModel) View() string {

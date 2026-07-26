@@ -19,7 +19,7 @@ import (
 // old script.
 //
 // LiveApply semantics: the picker's scroll preview fires with
-// THEME_LIVE_APPLY=1. Hooks with LiveApply=false are skipped there so
+// preview tier (opts.LiveApply=true). Hooks with LiveApply=false are skipped there so
 // scroll stays snappy. Rule of thumb: if the hook only takes effect on
 // app relaunch, LiveApply=false (no point retinting an app that isn't
 // visibly re-tinted yet).

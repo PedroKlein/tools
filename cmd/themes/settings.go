@@ -67,7 +67,7 @@ type settingsModel struct {
 	// a new one. Prevents overlapping reloads on rapid key-repeat: each
 	// adjust() cancels the prior reload's context and spawns a fresh one
 	// so we never accumulate goroutines nor race on the shared
-	// THEME_LIVE_APPLY env var.
+	// obsolete plumbing removed in a4.
 	reloadCancel context.CancelFunc
 }
 
@@ -150,7 +150,7 @@ func (m *settingsModel) adjust(dir int) {
 		return
 	}
 	// Cancel any prior in-flight reload before spawning a new one.
-	// Guards against key-repeat storms and prevents THEME_LIVE_APPLY
+	// Guards against key-repeat storms and prevents preview-flag
 	// races between overlapping goroutines.
 	if m.reloadCancel != nil {
 		m.reloadCancel()

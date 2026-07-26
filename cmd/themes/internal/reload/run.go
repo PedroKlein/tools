@@ -24,7 +24,7 @@ type Options struct {
 	// SkipHooks holds names to omit. If nil, reads THEME_SKIP_HOOKS.
 	SkipHooks map[string]bool
 
-	// LiveApply overrides THEME_LIVE_APPLY detection. Rare; used by tests.
+	// LiveApply overrides the default (false = commit). Rare; used by tests.
 	LiveApply *bool
 
 	// PerHookTimeout overrides the default 4s cap. Zero uses defaultTimeout.
@@ -56,7 +56,11 @@ func RunAll(ctx context.Context, themeDir string, opts Options) []Result {
 	if skip == nil {
 		skip = SkipList()
 	}
-	live := LiveApplyMode()
+// live defaults to false (commit-mode) unless the caller explicitly
+// overrides it. Historically we also read THEME_LIVE_APPLY from the
+// environment; a4 removed that plumbing because Set is now the sole
+// LiveApply-parameter carrier.
+	live := false
 	if opts.LiveApply != nil {
 		live = *opts.LiveApply
 	}
