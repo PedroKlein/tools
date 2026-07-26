@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -31,72 +30,10 @@ func TestParseGlobalFlags(t *testing.T) {
 	}
 }
 
-func TestStateRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	sp := filepath.Join(dir, "state.json")
-	s := &State{
-		Theme:            "osaka-jade",
-		Wallpaper:        "/tmp/bg.jpg",
-		WallpaperByTheme: map[string]string{"osaka-jade": "/tmp/bg.jpg"},
-		ChangedAt:        "2026-01-15T09:12:33Z",
-	}
-	if err := s.saveTo(sp); err != nil {
-		t.Fatalf("save: %v", err)
-	}
-	got, err := loadStateFrom(sp)
-	if err != nil {
-		t.Fatalf("load: %v", err)
-	}
-	if got.Theme != s.Theme ||
-		got.Wallpaper != s.Wallpaper || got.ChangedAt != s.ChangedAt ||
-		got.WallpaperByTheme["osaka-jade"] != "/tmp/bg.jpg" {
-		t.Fatalf("round-trip mismatch: %+v", got)
-	}
-	if got.SchemaVersion != currentSchemaVersion {
-		t.Errorf("schema version = %d, want %d", got.SchemaVersion, currentSchemaVersion)
-	}
-}
-
-func TestLoadStateMissingFile(t *testing.T) {
-	dir := t.TempDir()
-	sp := filepath.Join(dir, "state.json")
-	s, err := loadStateFrom(sp)
-	if err != nil {
-		t.Fatalf("expected no error on missing file, got %v", err)
-	}
-	if s.Theme != "" {
-		t.Errorf("expected zero-value theme, got %q", s.Theme)
-	}
-	if s.WallpaperByTheme == nil {
-		t.Error("expected non-nil WallpaperByTheme")
-	}
-}
-
-func TestSaveAtomicUsesRename(t *testing.T) {
-	// Write, then poison the target by making it read-only. Save should still
-	// succeed via tmp+rename semantics on POSIX.
-	dir := t.TempDir()
-	sp := filepath.Join(dir, "state.json")
-	s := &State{Theme: "one"}
-	if err := s.saveTo(sp); err != nil {
-		t.Fatalf("first save: %v", err)
-	}
-	s.Theme = "two"
-	if err := s.saveTo(sp); err != nil {
-		t.Fatalf("second save: %v", err)
-	}
-	b, err := os.ReadFile(sp)
-	if err != nil {
-		t.Fatalf("read: %v", err)
-	}
-	var got State
-	if err := json.Unmarshal(b, &got); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if got.Theme != "two" {
-		t.Errorf("theme=%q want two", got.Theme)
-	}
-}
+// v3 state-file tests (TestStateRoundTrip, TestLoadStateMissingFile,
+// TestSaveAtomicUsesRename) were deleted with cmd/themes/state.go in a3.
+// State lives at $XDG_STATE_HOME/themes/state.json and is covered by
+// internal/state/state_test.go and stress_test.go.
 
 func TestSwapSymlinkAtomic(t *testing.T) {
 	// Simulate atomic symlink swap: link -> A, then swap to B.

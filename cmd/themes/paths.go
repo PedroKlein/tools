@@ -7,9 +7,9 @@ import (
 
 // Layout constants. All paths inside ~/.config/themes/ are prefixed with a
 // dot when they carry switcher metadata; theme directories themselves are
-// bare names at the top level.
+// bare names at the top level. State lives at $XDG_STATE_HOME/themes/
+// (see internal/state) — not at ~/.config/themes/.state.json anymore.
 const (
-	stateFile   = ".state.json"
 	currentLink = ".current"
 	hooksDir    = ".hooks"
 	binDir      = ".bin"
@@ -26,11 +26,6 @@ func themesRoot() string {
 		home = os.Getenv("HOME")
 	}
 	return filepath.Join(home, ".config", "themes")
-}
-
-// statePath returns the absolute path to the state file.
-func statePath() string {
-	return filepath.Join(themesRoot(), stateFile)
 }
 
 // currentPath returns the absolute path to the .current symlink.

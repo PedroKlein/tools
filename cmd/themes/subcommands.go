@@ -8,25 +8,17 @@ import (
 	xdgstate "github.com/PedroKlein/tools/cmd/themes/internal/state"
 )
 
-// activeState returns the currently-active theme record, preferring XDG
-// state (v4) and falling back to the v3 .state.json for machines
-// mid-migration. Returns a zero-value State (empty Theme) when nothing
-// is recorded, never an error — callers decide how to handle empty.
+// activeState returns the currently-active theme record from the XDG
+// state file — single source of truth after the v3 shim was removed in a3.
+// Returns a zero-value State (empty Theme) when nothing is recorded,
+// never an error — callers decide how to handle empty.
 //
-// Fixes the S-11 read-path gap: runCurrent, runList's active-theme
-// marker, and runWallpaper sub-cases previously read only v3, so post-
-// migration they silently reported the wrong theme.
+// Historically fell back to a v3 flat file at ~/.config/themes/.state.json;
+// that path was covered by migrate-themes-v4.sh and migrate-themes-
+// flatten.sh. Any install that hasn't run those is unsupported.
 func activeState() xdgstate.State {
-	if s, err := xdgstate.Load(); err == nil && s != nil && s.Theme != "" {
+	if s, err := xdgstate.Load(); err == nil && s != nil {
 		return *s
-	}
-	if ls, err := LoadState(); err == nil {
-		return xdgstate.State{
-			Theme:            ls.Theme,
-			Wallpaper:        ls.Wallpaper,
-			WallpaperByTheme: ls.WallpaperByTheme,
-			ChangedAt:        ls.ChangedAt,
-		}
 	}
 	return xdgstate.State{}
 }
