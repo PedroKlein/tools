@@ -101,10 +101,15 @@ var registry = []Hook{
 	// write chain; tmux: tmux env var propagation).
 
 	{
-		Name:      "osc-broadcast",
-		Kind:      KindExternal,
-		Script:    "osc-broadcast.sh",
-		LiveApply: true, // core of live retint; must fire on scroll
+		// Ported to Go in b3. Reads theme.json semantic + ansi palette,
+		// builds an OSC blob (10/11/12 + 4;N + 1337 SetColors=), discovers
+		// TTYs via tmux list-panes + pgrep walk, writes concurrently via
+		// goroutines + os.WriteFile (no per-pane subprocesses), then
+		// SIGWINCHes each fg pgid.
+		Name:       "osc-broadcast",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn:         hookOSC,
 	},
 	{
 		Name:      "macos-system",
