@@ -123,10 +123,12 @@ var registry = []Hook{
 		Fn:         hookPi,
 	},
 	{
-		Name:      "tmux",
-		Kind:      KindExternal,
-		Script:    "tmux.sh",
-		LiveApply: true, // status bar retints instantly
+		// Ported to Go in b2. source-file, transparency baseline
+		// (bg=default), refresh-client per attached client.
+		Name:       "tmux",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn:         hookTmux,
 	},
 	{
 		Name:      "wallpaper",
