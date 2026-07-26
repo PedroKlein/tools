@@ -118,7 +118,12 @@ func RunAll(ctx context.Context, themeDir string, opts Options) []Result {
 		}(i, h)
 	}
 	wg.Wait()
-	return results
+	// Final wave: user-supplied .hooks/*.sh files. Kept outside the
+	// registry so users don't need to modify the tools binary to add a
+	// hook. Runs sequentially in filename order for determinism; each
+	// is bounded by userHookTimeout.
+	userResults := RunUserHooks(ctx, themeDir, stderr)
+	return append(results, userResults...)
 }
 
 // hookTimeout returns the hook-specific cap or the fallback.
@@ -133,6 +138,8 @@ func hookTimeout(h Hook, fallback time.Duration) time.Duration {
 // RunPreview/RunCommit/OS set) always route through h.Fn. Legacy hooks
 // still switch on Kind. Returns nil on success (including "no target
 // process" for KindSignal — signalling nothing is fine).
+// External (.sh) hooks are no longer registry entries; user-supplied
+// .hooks/*.sh files run in a final wave via runUserHooks.
 func runOne(ctx context.Context, h Hook, themeDir string, stderr io.Writer) error {
 	// b0-forward path: new-shape hooks are pure Go functions.
 	if h.hasNewShape() {
@@ -154,8 +161,6 @@ func runOne(ctx context.Context, h Hook, themeDir string, stderr io.Writer) erro
 			return fmt.Errorf("inline hook %s has nil Fn", h.Name)
 		}
 		return runFn(ctx, h, themeDir)
-	case KindExternal:
-		return runExternal(ctx, h, themeDir, stderr)
 	}
 	return fmt.Errorf("unknown hook kind %d for %s", h.Kind, h.Name)
 }
@@ -202,26 +207,6 @@ func runCommand(ctx context.Context, h Hook, stderr io.Writer) error {
 func runSignal(h Hook) error {
 	sig := parseSignal(h.Signal)
 	return signalProcess(h.SignalTarget, sig)
-}
-
-// runExternal invokes the .sh file with themeDir as its argv[1].
-func runExternal(ctx context.Context, h Hook, themeDir string, stderr io.Writer) error {
-	script := hookScript(h.Script)
-	if _, err := os.Stat(script); err != nil {
-		return nil // absent scripts are fine (fresh install)
-	}
-	cmd := exec.CommandContext(ctx, script, themeDir)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = stderr
-	// Propagate the LIVE_APPLY signal so downstream scripts can react.
-	cmd.Env = os.Environ()
-	if err := cmd.Run(); err != nil {
-		if ctx.Err() != nil {
-			return fmt.Errorf("%s: timed out after %v", h.Name, hookTimeout(h, defaultTimeout))
-		}
-		return fmt.Errorf("%s: %w", h.Name, err)
-	}
-	return nil
 }
 
 // parseSignal maps a signal name string (e.g. "SIGUSR1") to a syscall.Signal.

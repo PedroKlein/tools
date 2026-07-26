@@ -48,10 +48,6 @@ const (
 	// opencode's tui.json .theme field edit).
 	KindInline
 
-	// KindExternal invokes an .sh file under the hooks dir. Used for
-	// non-trivial logic (osc-broadcast, macos-system, wallpaper, pi,
-	// tmux). The .sh file receives the theme dir as its first arg.
-	KindExternal
 )
 
 // Hook is one entry in the reload registry.
@@ -59,7 +55,7 @@ const (
 // Two field-sets coexist during the b0..b7 transition:
 //
 // LEGACY (pre-b0): Kind + Cmd/Args/Signal/SignalTarget/Script + LiveApply.
-// External (.sh) hooks are also possible via KindExternal + Script.
+// User .sh hooks under .hooks/ are discovered at runtime as user extensions (see runUserHooks in run.go).
 //
 // NEW (b0 forward): single-shape RunPreview + RunCommit + OS + Fn.
 // Every ported hook is a Go function. External .sh files under .hooks/
@@ -125,9 +121,6 @@ type Hook struct {
 	// timeout.
 	Fn func(ctx context.Context, themeDir string) error
 
-	// Script is the basename of the .sh file for KindExternal (relative
-	// to the hooks dir, e.g. "osc-broadcast.sh").
-	Script string
 }
 
 // hasNewShape reports whether a Hook uses the new single-shape fields
