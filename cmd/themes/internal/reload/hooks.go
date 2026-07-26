@@ -112,10 +112,17 @@ var registry = []Hook{
 		Fn:         hookOSC,
 	},
 	{
-		Name:      "macos-system",
-		Kind:      KindExternal,
-		Script:    "macos-system.sh",
-		LiveApply: true, // .macos.json read is fast; safe on scroll
+		// Ported to Go in b4. Reads <theme>/derived/macos.json, writes
+		// defaults NSGlobalDomain (accent + aqua variant + highlight) and
+		// AppleInterfaceStyle. Mode via osascript. Propagates via notifyutil
+		// -p (AppleColorPreferencesChangedNotification +
+		// NSSystemColorsDidChangeNotification) INSTEAD of the killall
+		// cascade. Darwin only.
+		Name:       "macos-system",
+		RunPreview: false, // accent flash on scroll is jarring
+		RunCommit:  true,
+		OS:         "darwin",
+		Fn:         hookMacOS,
 	},
 	{
 		// Ported to Go in b1. Reads <theme>/derived/pi.json, forces
