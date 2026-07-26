@@ -44,19 +44,16 @@ var registry = []Hook{
 		LiveApply: false,
 	},
 	{
-		// Ghostty's reload_config picks up palette/fg/bg/cursor changes
-		// in already-open windows via an osascript menu-item click (see
-		// .hooks/ghostty.sh). It does NOT hot-reload background-opacity /
-		// background-blur on macOS — those need a full app relaunch per
-		// upstream docs, and forcing a reload with a changed opacity value
-		// drops existing windows to fully opaque. We now keep opacity/blur
-		// out of the emitted theme file (see emit_ghostty.go) so
-		// reload_config only ever touches keys it can hot-apply, and this
-		// hook stays safe during scroll-preview.
-		Name:      "ghostty",
-		Kind:      KindExternal,
-		Script:    "ghostty.sh",
-		LiveApply: true,
+		// Ported to Go in b6 as a documented no-op. The transparency
+		// investigation established that Ghostty 1.3.1 + macOS +
+		// window-decoration=false has a bug where reload_config drops
+		// windows to fully opaque. OSC broadcast (b3) handles palette
+		// retint without needing reload_config. See hook_ghostty.go for
+		// the full rationale + upstream tracking issues.
+		Name:       "ghostty",
+		RunPreview: false,
+		RunCommit:  false, // no-op; nothing to do, don't consume a slot
+		Fn:         hookGhostty,
 	},
 	{
 		Name:      "k9s",
