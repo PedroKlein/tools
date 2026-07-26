@@ -113,10 +113,14 @@ var registry = []Hook{
 		LiveApply: true, // .macos.json read is fast; safe on scroll
 	},
 	{
-		Name:      "pi",
-		Kind:      KindExternal,
-		Script:    "pi.sh",
-		LiveApply: true, // pi's file watcher hot-reloads on byte overwrite
+		// Ported to Go in b1. Reads <theme>/derived/pi.json, forces
+		// .name = "current", atomically writes into each installed pi
+		// profile's themes/current.json. Pi's file watcher fires
+		// onThemeChange on byte-overwrite and retints in place.
+		Name:       "pi",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn:         hookPi,
 	},
 	{
 		Name:      "tmux",

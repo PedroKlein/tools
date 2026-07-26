@@ -39,8 +39,9 @@ func TestRegistryStableOrder(t *testing.T) {
 }
 
 func TestFilterSkipsLiveApplyOnScroll(t *testing.T) {
-	// Sanity: LiveApply=false hooks must be filtered when THEME_LIVE_APPLY=1.
-	// FilterHooks receives liveApply=true → drop all LiveApply=false entries.
+	// Sanity: LiveApply=false hooks must be filtered when live-mode is on.
+	// FilterHooks receives liveApply=true → drop legacy LiveApply=false
+	// entries and new-shape RunPreview=false entries.
 	live := FilterHooks(nil, true)
 	commit := FilterHooks(nil, false)
 
@@ -49,10 +50,13 @@ func TestFilterSkipsLiveApplyOnScroll(t *testing.T) {
 			len(live), len(commit))
 	}
 
-	// Every returned hook must have LiveApply=true.
+	// Every returned hook must be preview-eligible: either legacy
+	// LiveApply=true, or new-shape RunPreview=true.
 	for _, h := range live {
-		if !h.LiveApply {
-			t.Errorf("live-mode filter kept LiveApply=false hook: %s", h.Name)
+		previewOK := (h.hasNewShape() && h.RunPreview) || (!h.hasNewShape() && h.LiveApply)
+		if !previewOK {
+			t.Errorf("live-mode filter kept preview-ineligible hook: %s (LiveApply=%v RunPreview=%v hasNewShape=%v)",
+				h.Name, h.LiveApply, h.RunPreview, h.hasNewShape())
 		}
 	}
 }

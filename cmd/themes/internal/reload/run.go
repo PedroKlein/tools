@@ -129,9 +129,19 @@ func hookTimeout(h Hook, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-// runOne dispatches on Kind. Returns nil on success (including "no target
+// runOne dispatches the hook. New-shape hooks (any of
+// RunPreview/RunCommit/OS set) always route through h.Fn. Legacy hooks
+// still switch on Kind. Returns nil on success (including "no target
 // process" for KindSignal — signalling nothing is fine).
 func runOne(ctx context.Context, h Hook, themeDir string, stderr io.Writer) error {
+	// b0-forward path: new-shape hooks are pure Go functions.
+	if h.hasNewShape() {
+		if h.Fn == nil {
+			return fmt.Errorf("new-shape hook %s has nil Fn", h.Name)
+		}
+		return runFn(ctx, h, themeDir)
+	}
+	// Legacy Kind switch.
 	switch h.Kind {
 	case KindNoop:
 		return nil
@@ -143,24 +153,28 @@ func runOne(ctx context.Context, h Hook, themeDir string, stderr io.Writer) erro
 		if h.Fn == nil {
 			return fmt.Errorf("inline hook %s has nil Fn", h.Name)
 		}
-		// Inline Fns are required to honor ctx.Done() themselves (see
-		// reload.Hook doc). We still run under a select so a misbehaving
-		// Fn doesn't block RunAll's overall timeout — but the goroutine
-		// may leak past deadline. In practice all in-tree inline hooks
-		// return in milliseconds, so this is a bounded soft-leak, not a
-		// growing one.
-		done := make(chan error, 1)
-		go func() { done <- h.Fn(ctx, themeDir) }()
-		select {
-		case err := <-done:
-			return err
-		case <-ctx.Done():
-			return fmt.Errorf("%s: %w", h.Name, ctx.Err())
-		}
+		return runFn(ctx, h, themeDir)
 	case KindExternal:
 		return runExternal(ctx, h, themeDir, stderr)
 	}
 	return fmt.Errorf("unknown hook kind %d for %s", h.Kind, h.Name)
+}
+
+// runFn runs h.Fn under the context deadline. Fn implementations are
+// required to honor ctx.Done() themselves (see reload.Hook doc). We
+// still run under a select so a misbehaving Fn doesn't block RunAll's
+// overall timeout — but the goroutine may leak past deadline. In
+// practice all in-tree Fns return in milliseconds, so this is a bounded
+// soft-leak, not a growing one.
+func runFn(ctx context.Context, h Hook, themeDir string) error {
+	done := make(chan error, 1)
+	go func() { done <- h.Fn(ctx, themeDir) }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("%s: %w", h.Name, ctx.Err())
+	}
 }
 
 // runCommand runs Cmd + Args under the context deadline.
