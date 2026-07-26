@@ -113,11 +113,23 @@ func hookMacOS(ctx context.Context, themeDir string) error {
 	// processes. Cocoa apps observing NSGlobalDomain repaint on the next
 	// runloop tick (typically <100ms). Missing `notifyutil` (rare) falls
 	// through with a soft warning — accent still applies on next open.
+	//
+	// The two notifications must be POSTED BARE (no com.apple.* prefix).
+	// CoreUI expects both to fire on any accent-variant change:
+	//   AppleColorPreferencesChangedNotification
+	//   AppleAquaColorVariantChanged
+	// Source: Chromium's theme_helper_mac.mm (Robert Sesek) + Alex Chan
+	// https://alexwlchan.net/2022/changing-the-macos-accent-colour/
+	//
+	// Even both notifications together only reach apps that observe them
+	// (Finder, Safari, TextEdit, most Cocoa apps do; Electron apps often
+	// don't, and pick up on next launch). If accent isn't visibly
+	// changing on YOUR system, run `killall Dock SystemUIServer` manually
+	// — this hook intentionally avoids that cascade because it stalls
+	// rapid consecutive swaps.
 	if _, err := exec.LookPath("notifyutil"); err == nil {
-		_ = exec.CommandContext(ctx, "notifyutil", "-p",
-			"com.apple.systemcolors.AppleColorPreferencesChangedNotification").Run()
-		_ = exec.CommandContext(ctx, "notifyutil", "-p",
-			"com.apple.NSSystemColorsDidChangeNotification").Run()
+		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleColorPreferencesChangedNotification").Run()
+		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleAquaColorVariantChanged").Run()
 	}
 	return nil
 }
