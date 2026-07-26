@@ -41,8 +41,10 @@ func emitK9sSemantic(t *Theme, w io.Writer) error {
 	fmt.Fprintf(w, "      keyColor: %q\n", s.Accent2)
 	fmt.Fprintf(w, "      numKeyColor: %q\n", s.Warning)
 	fmt.Fprintln(w, "    crumbs:")
-	fmt.Fprintf(w, "      fgColor: %q\n", s.Bg)
-	fmt.Fprintf(w, "      bgColor: %q\n", s.Accent)
+	// crumbs bar: transparent (bg=default). fg=accent + activeColor=warning
+	// gives sufficient signal without painting a full-width pill.
+	fmt.Fprintf(w, "      fgColor: %q\n", s.Accent)
+	fmt.Fprintf(w, "      bgColor: default\n")
 	fmt.Fprintf(w, "      activeColor: %q\n", s.Warning)
 	fmt.Fprintln(w, "    status:")
 	fmt.Fprintf(w, "      newColor: %q\n", s.Ok)
@@ -62,6 +64,12 @@ func emitK9sSemantic(t *Theme, w io.Writer) error {
 	fmt.Fprintln(w, "    table:")
 	fmt.Fprintf(w, "      fgColor: %q\n", s.Fg)
 	fmt.Fprintf(w, "      bgColor: default\n")
+	// cursorBgColor is INTENTIONALLY an explicit accent color — it paints
+	// the currently-selected table row so the user can see which row is
+	// active. Without it, row selection has no visual signal. This is
+	// functional UI (like diff +/- bg in delta), not decorative chrome,
+	// so transparency is not desired here. See docs/plans/theme-transparency.md
+	// § P4.k9s for the accepted trade-off.
 	fmt.Fprintf(w, "      cursorFgColor: %q\n", s.Bg)
 	fmt.Fprintf(w, "      cursorBgColor: %q\n", s.Accent)
 	fmt.Fprintln(w, "      header:")

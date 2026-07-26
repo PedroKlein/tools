@@ -15,7 +15,7 @@ theme[selected_bg]="#333333"
 theme[selected_fg]="#eeeeee"
 
 # --- semantic ---
-theme[main_bg]="#111C18"
+theme[main_bg]=""
 theme[main_fg]="#C1C497"
 theme[title]="#C1C497"
 theme[hi_fg]="#549E6A"

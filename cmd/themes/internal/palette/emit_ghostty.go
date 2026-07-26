@@ -16,14 +16,40 @@ import (
 //	  background = <hex>
 //	  foreground = <hex>
 //	  cursor-color = <hex>
-//	  background-opacity = <effects.opacity>
-//	  background-blur = <effects.blur>
+//	  background-opacity = <effects.opacity>       (per-theme)
+//	  background-blur    = <effects.blur>          (per-theme)
 //	  palette = 0=<ansi[0]>  ... palette = 15=<ansi[15]>
 //	# --- hints ---
 //	  # (ghostty has no known hint keys today)
 //	# --- overrides ---
 //	  <overrides.ghostty verbatim>
 //	  <overrides.ghostty_path sidecar>
+//
+// ARRANGEMENT A (docs/plans/theme-transparency.md): background-opacity
+// and background-blur ARE emitted per theme. The user's
+// ~/.config/ghostty/config sets safe fallbacks (0.85 / 20) BEFORE it
+// includes ~/.config/themes/.current/ghostty.conf via `config-file`.
+// Ghostty's config chain semantics: the theme file's values override
+// the fallbacks, so per-theme opacity/blur wins.
+//
+// Runtime propagation of opacity/blur is NOT possible on Ghostty 1.3.1
+// macOS — those keys require a full window relaunch. Existing windows
+// keep their launch-time opacity; new windows opened after a theme
+// swap pick up the new value. Live bg/fg/palette updates happen via
+// OSC 4/10/11/12 from osc-broadcast.sh (safe; does not touch opacity).
+//
+// background-opacity-cells is NOT emitted per theme — it is a global
+// policy ("every cell honors opacity uniformly") set once in the user
+// config. Emitting it per theme would let a theme break that policy;
+// keeping it out of the emitter enforces it.
+//
+// Suppression of Linux is unconditional (no runtime.GOOS gate) because
+// the themes tool is macOS-only by design — AGENTS.md § themes-v4
+// declares "Macos-only scope; Omarchy uses its own omarchy-theme-set
+// pipeline", the .hooks/ directory is entirely macOS-bound (osascript,
+// defaults write, macOS wallpaper), and there are no Linux/Windows
+// consumers. If that scope ever changes, gate emission here on
+// runtime.GOOS and add a parallel non-darwin golden.
 
 type ghosttyEmitter struct{}
 
@@ -43,7 +69,10 @@ func emitGhosttySemantic(t *Theme, w io.Writer) error {
 	fmt.Fprintf(w, "selection-background = %s\n", s.SelectionBg)
 	fmt.Fprintf(w, "selection-foreground = %s\n", s.SelectionFg)
 
-	// Translucency from effects.
+	// Per-theme opacity/blur (arrangement A — see file header).
+	// Emitted only when the theme actually declares translucency
+	// (opacity in (0,1)) or blur > 0. Themes that omit both fall back
+	// to the values in ~/.config/ghostty/config (0.85 / 20).
 	if t.Effects.Opacity > 0 && t.Effects.Opacity < 1 {
 		fmt.Fprintf(w, "background-opacity = %s\n", trimFloat(t.Effects.Opacity))
 	}

@@ -17,7 +17,7 @@ use_nerd_font_icons = true
 [ui.theme]
 name = "osaka-jade"
 [ui.theme.colors]
-background = "#111C18"
+background = ""
 foreground = "#C1C497"
 muted = "#627A6C"
 accent = "#549E6A"

@@ -12,6 +12,25 @@ import (
 // the pi-mono repo (~/.pi/agent/npm/node_modules/pi/theme-schema.json).
 // v4 output is a superset of v3: same var and color keys, populated
 // from theme.json's semantic slots.
+//
+// TRANSPARENCY POLICY (docs/plans/theme-transparency.md § P4.pi)
+// ==============================================================
+// All `*Bg` color fields default to "" (empty string) so pi's TUI
+// never paints an explicit background color for chat messages, tool
+// blocks, or selected items. Empty is the schema convention for
+// "transparent/default" (same as `text`, `userMessageText`, etc.).
+//
+// This is what enables Ghostty's `background-opacity-cells = true`
+// policy to render pi's cells uniformly translucent — identical to
+// surrounding empty pane cells. Painting bg=#mantle etc. produced a
+// visible "pi region" with slightly different opacity blending than
+// the surrounding terminal.
+//
+// Visual differentiation the *Bg fields used to provide (message-type
+// coloring, tool status pills) is now lost. Themes that want it back
+// can set hints.pi.colors.<field> to a palette var; the hint override
+// path below picks it up. Label fg colors (customMessageLabel, etc.)
+// still provide color signal for at-a-glance scanning.
 
 type piEmitter struct{}
 
@@ -67,15 +86,15 @@ func emitPiJSON(t *Theme, w io.Writer) error {
 		"muted":             "muted",
 		"dim":               "muted",
 		"text":              "",
-		"userMessageBg":     "surface0",
+		"userMessageBg":     "", // transparent (see file header)
 		"userMessageText":   "",
-		"customMessageBg":   "mantle",
+		"customMessageBg":   "", // transparent
 		"customMessageLabel": "purple",
 		"customMessageText": "",
-		"selectedBg":        "surface1",
-		"toolPendingBg":     "mantle",
-		"toolSuccessBg":     "mantle",
-		"toolErrorBg":       "mantle",
+		"selectedBg":        "", // transparent — selection uses reverse/bold at pi's rendering layer
+		"toolPendingBg":     "", // transparent; toolTitle fg gives status signal
+		"toolSuccessBg":     "",
+		"toolErrorBg":       "",
 		"toolOutput":        "muted",
 		"toolTitle":         "",
 		"mdHeading":         "yellow",

@@ -26,10 +26,17 @@ func emitBtopSemantic(t *Theme, w io.Writer) error {
 	}
 
 	// Bar surfaces.
-	line("main_bg", s.Bg)
+	// main_bg: intentionally empty string → btop reads this as "use
+	// terminal default background", which lets Ghostty's translucent bg
+	// show through. Emitting s.Bg (hex) here would override the baseline's
+	// transparent default and paint a solid rectangle.
+	line("main_bg", "")
 	line("main_fg", s.Fg)
 	line("title", s.Fg)
 	line("hi_fg", s.Accent)
+	// selected_bg is functional UI (highlights the currently-selected
+	// process row) — kept opaque like k9s cursorBgColor and delta +/-
+	// diff lines. Documented trade-off, see docs/plans/theme-transparency.md.
 	line("selected_bg", s.SelectionBg)
 	line("selected_fg", s.Fg)
 	line("inactive_fg", s.Muted)

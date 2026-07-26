@@ -44,14 +44,15 @@ var registry = []Hook{
 		LiveApply: false,
 	},
 	{
-		// Ghostty needs an explicit reload_config trigger for hot-reload
-		// of background-opacity / background-blur to fire (PR #5083). SIGUSR2
-		// was requested upstream (issue #7747) but not implemented, and
-		// `+reload-config` CLI action was discussed (#10394) but not
-		// shipped. We osascript-click the Reload Configuration menu item
-		// via .hooks/ghostty.sh instead — menu clicks don't steal focus,
-		// so this is safe during scroll-preview.
-		// LiveApply=true so opacity updates track scroll like palette does.
+		// Ghostty's reload_config picks up palette/fg/bg/cursor changes
+		// in already-open windows via an osascript menu-item click (see
+		// .hooks/ghostty.sh). It does NOT hot-reload background-opacity /
+		// background-blur on macOS — those need a full app relaunch per
+		// upstream docs, and forcing a reload with a changed opacity value
+		// drops existing windows to fully opaque. We now keep opacity/blur
+		// out of the emitted theme file (see emit_ghostty.go) so
+		// reload_config only ever touches keys it can hot-apply, and this
+		// hook stays safe during scroll-preview.
 		Name:      "ghostty",
 		Kind:      KindExternal,
 		Script:    "ghostty.sh",
