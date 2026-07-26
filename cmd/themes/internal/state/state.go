@@ -3,7 +3,13 @@
 // State lives at $XDG_STATE_HOME/themes/ (falling back to
 // ~/.local/state/themes/) so the repo has zero runtime churn:
 //   - state.json  — active theme, per-theme wallpaper, changed_at
-//   - current     — symlink to <active-theme-dir>/derived/
+//   - current     — symlink to <active-theme-dir>/ (theme root)
+//
+// The symlink used to point at <theme>/derived/ (see git history for
+// the walkback dance that fixed callers). It now points at the theme
+// root so callers read `<current>/theme.json` and hooks read
+// `<current>/derived/<file>` — one explicit hop instead of a resolve+
+// stripbasename tango. Migration: scripts/migrate-themes-flatten.sh.
 //
 // The main-package v3 State type still exists in cmd/themes/state.go
 // for backwards-compat reads on machines mid-migration; this package
@@ -117,12 +123,16 @@ func saveTo(s State, path string) error {
 }
 
 // SetCurrent atomically re-points the `current` symlink at the given
-// theme's derived/ directory and updates state.json (Theme becomes
+// theme's root directory and updates state.json (Theme becomes
 // themeName; PreviousTheme becomes the previous Theme).
 //
 // themeDir is the absolute path to the theme directory (containing
 // theme.json and derived/). Callers pass an already-resolved path
 // so we don't have to hard-code the themes root here.
+//
+// The symlink target is <themeDir>/ (theme root), NOT <themeDir>/derived/.
+// Hooks read derived files as <current>/derived/<file> — one explicit
+// hop. See package doc for the migration rationale.
 //
 // Rename-based swap: any reader of `current` observes either the old
 // or the new target, never a partial state.
@@ -130,6 +140,9 @@ func SetCurrent(themeName, themeDir string) error {
 	if themeName == "" || themeDir == "" {
 		return fmt.Errorf("state.SetCurrent: theme name and dir required")
 	}
+	// Precondition: derived/ must exist. Hooks depend on it — pointing
+	// `current` at a theme with no derived files would break the whole
+	// swap. This check is invariant, not related to the symlink target.
 	derivedPath := filepath.Join(themeDir, "derived")
 	if _, err := os.Stat(derivedPath); err != nil {
 		return fmt.Errorf("state.SetCurrent: derived dir missing (%s); run 'themes derive' first", derivedPath)
@@ -180,11 +193,12 @@ func SetCurrent(themeName, themeDir string) error {
 	}
 
 	// 2. Atomically swap the `current` symlink via rename(2). Create a
-	//    fresh temp symlink then rename over the old one.
+	//    fresh temp symlink then rename over the old one. Target is the
+	//    theme root; hooks append /derived/<file> as needed.
 	link := currentPath()
 	tmp := link + ".tmp"
 	_ = os.Remove(tmp)
-	if err := os.Symlink(derivedPath, tmp); err != nil {
+	if err := os.Symlink(themeDir, tmp); err != nil {
 		return fmt.Errorf("state.SetCurrent: create temp symlink: %w", err)
 	}
 	if err := os.Rename(tmp, link); err != nil {

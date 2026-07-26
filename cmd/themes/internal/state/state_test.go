@@ -99,8 +99,8 @@ func TestSetCurrentSwapsAtomically(t *testing.T) {
 	if err := SetCurrent("osaka-jade", oskDir); err != nil {
 		t.Fatalf("SetCurrent(osaka-jade): %v", err)
 	}
-	if got := CurrentTarget(); got != filepath.Join(oskDir, "derived") {
-		t.Errorf("current -> %q, want %q", got, filepath.Join(oskDir, "derived"))
+	if got := CurrentTarget(); got != oskDir {
+		t.Errorf("current -> %q, want %q", got, oskDir)
 	}
 	s, _ := Load()
 	if s.Theme != "osaka-jade" || s.PreviousTheme != "" {
@@ -115,7 +115,7 @@ func TestSetCurrentSwapsAtomically(t *testing.T) {
 	if s.Theme != "gruvbox-material" || s.PreviousTheme != "osaka-jade" {
 		t.Errorf("state after swap: %+v", s)
 	}
-	if got := CurrentTarget(); got != filepath.Join(gruvDir, "derived") {
+	if got := CurrentTarget(); got != gruvDir {
 		t.Errorf("current after swap = %q", got)
 	}
 }

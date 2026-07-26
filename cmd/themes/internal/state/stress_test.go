@@ -50,7 +50,7 @@ func TestSetCurrentStressAtomicity(t *testing.T) {
 				// stress test hammers the loop faster than real usage.
 				continue
 			}
-			if got != filepath.Join(dirA, "derived") && got != filepath.Join(dirB, "derived") {
+			if got != dirA && got != dirB {
 				t.Errorf("unexpected target %q", got)
 				return
 			}
