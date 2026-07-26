@@ -55,23 +55,54 @@ const (
 )
 
 // Hook is one entry in the reload registry.
+//
+// Two field-sets coexist during the b0..b7 transition:
+//
+// LEGACY (pre-b0): Kind + Cmd/Args/Signal/SignalTarget/Script + LiveApply.
+// External (.sh) hooks are also possible via KindExternal + Script.
+//
+// NEW (b0 forward): single-shape RunPreview + RunCommit + OS + Fn.
+// Every ported hook is a Go function. External .sh files under .hooks/
+// become user-supplied extensions only (b7 collapses the two shapes
+// into one).
+//
+// FilterHooks prefers new-shape fields when any are set on a Hook and
+// falls back to LiveApply otherwise.
 type Hook struct {
 	// Name is a short unique label. Used for THEME_SKIP_HOOKS matching
 	// and verbose logging.
 	Name string
 
+	// --- NEW single-shape fields (b0 forward) ---------------------------
+
+	// RunPreview: fire during picker cursor-scroll preview
+	// (opts.LiveApply=true). Rule of thumb: enable when the hook
+	// retints an already-visible surface in <60ms.
+	RunPreview bool
+
+	// RunCommit: fire during full commit (opts.LiveApply=false / CLI /
+	// TUI Enter). Usually true; false only for preview-only hooks.
+	RunCommit bool
+
+	// OS is a runtime.GOOS filter ("darwin", "linux", or "" for any).
+	// Supersedes the legacy darwinOnly name map for hooks that set it.
+	OS string
+
+	// --- LEGACY fields (pre-b0; scheduled for b7 deletion) --------------
+
 	// Kind selects the runtime strategy.
 	Kind Kind
 
-	// LiveApply controls whether the hook fires during picker scroll
-	// preview (opts.LiveApply=true). false means commit-only.
+	// LiveApply is the legacy preview-tier flag. When RunPreview or
+	// RunCommit is set, LiveApply is ignored and the new fields drive
+	// filtering.
 	LiveApply bool
 
 	// Timeout is the maximum time RunAll waits for this hook. Default 4s
 	// when zero.
 	Timeout time.Duration
 
-	// --- Kind-specific fields ---
+	// --- Kind-specific fields (legacy) ---
 
 	// Cmd is the command executable for KindCommand.
 	Cmd string
@@ -86,18 +117,24 @@ type Hook struct {
 	// Matched via os.Process discovery (see hooks.go).
 	SignalTarget string
 
-	// Fn is the Go function invoked for KindInline. Receives the theme
-	// directory and a cancellation context. Implementations MUST honor
+	// Fn is the Go function invoked. In NEW shape (any of RunPreview /
+	// RunCommit / OS set), Fn is always used. In LEGACY shape,
+	// Fn is only invoked for KindInline. Implementations MUST honor
 	// ctx.Done() by returning promptly — Go has no forcible goroutine
 	// cancel, so a Fn that ignores ctx will leak past its per-hook
-	// timeout. All in-tree inline hooks are file/mem ops that return in
-	// milliseconds, so this is a soft contract; audit new inline hooks
-	// carefully.
+	// timeout.
 	Fn func(ctx context.Context, themeDir string) error
 
 	// Script is the basename of the .sh file for KindExternal (relative
 	// to the hooks dir, e.g. "osc-broadcast.sh").
 	Script string
+}
+
+// hasNewShape reports whether a Hook uses the new single-shape fields
+// (any of RunPreview/RunCommit/OS set). Fn alone does NOT flip the
+// shape because KindInline hooks (legacy) also set Fn.
+func (h Hook) hasNewShape() bool {
+	return h.RunPreview || h.RunCommit || h.OS != ""
 }
 
 // Registry returns the canonical hook list in a stable order. Callers may
@@ -138,14 +175,30 @@ func SkipList() map[string]bool {
 
 // FilterHooks returns the subset of the registry that should fire for
 // this invocation. Applies skip list, live-apply mode, and OS gating.
+//
+// Preview-tier decision:
+//
+//	1. If Hook.hasNewShape(): honor RunPreview + RunCommit.
+//	2. Else (legacy Hook): honor LiveApply.
+//
+// This lets b1..b6 port hooks incrementally.
 func FilterHooks(skip map[string]bool, liveApply bool) []Hook {
 	out := make([]Hook, 0, len(registry))
 	for _, h := range registry {
 		if skip[h.Name] {
 			continue
 		}
-		if liveApply && !h.LiveApply {
-			continue
+		if h.hasNewShape() {
+			if liveApply && !h.RunPreview {
+				continue
+			}
+			if !liveApply && !h.RunCommit {
+				continue
+			}
+		} else {
+			if liveApply && !h.LiveApply {
+				continue
+			}
 		}
 		if !osMatches(h) {
 			continue
@@ -155,13 +208,13 @@ func FilterHooks(skip map[string]bool, liveApply bool) []Hook {
 	return out
 }
 
-// osMatches applies per-hook OS filters. Currently:
-//   - sketchybar: Darwin only
-//   - macos-system: Darwin only
-//   - anything else: cross-platform
+// osMatches applies per-hook OS filters. New-shape hooks use Hook.OS
+// directly ("darwin", "linux", ""); legacy hooks fall back to the
+// darwinOnly name map.
 func osMatches(h Hook) bool {
-	// Central OS gate keeps hooks.go free of runtime.GOOS checks. Extend
-	// this table when new platform-specific hooks are added.
+	if h.OS != "" {
+		return runtimeGOOS() == h.OS
+	}
 	darwinOnly := map[string]bool{
 		"sketchybar":   true,
 		"macos-system": true,
