@@ -61,6 +61,19 @@ func TestFilterSkipsLiveApplyOnScroll(t *testing.T) {
 	}
 }
 
+func TestSynchronousPreviewExcludesSketchybar(t *testing.T) {
+	orig := goos
+	goos = "darwin"
+	defer func() { goos = orig }()
+
+	live := FilterHooks(nil, true)
+	for _, h := range live {
+		if h.Name == "sketchybar" {
+			t.Fatal("sketchybar full reload must stay out of synchronous preview hooks")
+		}
+	}
+}
+
 func TestFilterHonorsSkipList(t *testing.T) {
 	skip := map[string]bool{"bat": true, "sketchybar": true}
 	got := FilterHooks(skip, false)

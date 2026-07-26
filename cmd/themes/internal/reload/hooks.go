@@ -176,6 +176,10 @@ func hookSketchybar(ctx context.Context, _ string) error {
 	return nil
 }
 
+func PreviewSketchybar(ctx context.Context, themeDir string) error {
+	return hookSketchybar(ctx, themeDir)
+}
+
 // reloadOpencode rewrites ~/.config/opencode/tui.json's `theme` field to
 // match the current theme's opencode.name file.
 //

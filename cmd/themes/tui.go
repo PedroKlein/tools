@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	wallpaperPreviewDelay   = 200 * time.Millisecond
-	wallpaperPreviewTimeout = 2 * time.Second
+	wallpaperPreviewDelay    = 200 * time.Millisecond
+	wallpaperPreviewTimeout  = 2 * time.Second
+	sketchybarPreviewDelay   = 200 * time.Millisecond
+	sketchybarPreviewTimeout = 2 * time.Second
 )
 
 // runTUI is the interactive theme picker.
@@ -102,6 +104,16 @@ type wallpaperPreviewDoneMsg struct {
 	err error
 }
 
+type sketchybarPreviewMsg struct {
+	seq   int
+	theme string
+}
+
+type sketchybarPreviewDoneMsg struct {
+	seq int
+	err error
+}
+
 type pickerModel struct {
 	themes    []ThemeInfo
 	cursor    int
@@ -123,9 +135,10 @@ type pickerModel struct {
 	// Styles derived from the currently-active theme's palette. Rebuilt
 	// after every preview swap so the picker itself follows the theme.
 	styles pickerStyles
-	// wallpaperPreviewSeq invalidates stale debounce messages and stale
+	// preview sequence counters invalidate stale debounce messages and stale
 	// setter completions when the cursor moves again or the picker exits.
-	wallpaperPreviewSeq int
+	wallpaperPreviewSeq  int
+	sketchybarPreviewSeq int
 }
 
 // pickerStyles holds all lipgloss styles the TUI uses. Rebuilt via
@@ -201,6 +214,10 @@ func (m *pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleWallpaperPreview(msg)
 	case wallpaperPreviewDoneMsg:
 		return m.handleWallpaperPreviewDone(msg)
+	case sketchybarPreviewMsg:
+		return m.handleSketchybarPreview(msg)
+	case sketchybarPreviewDoneMsg:
+		return m.handleSketchybarPreviewDone(msg)
 	}
 	_ = msg
 	return m, nil
@@ -214,17 +231,17 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// toggled off after preview, drift, etc.). Always compare current
 		// state to startedAt — NOT the cursor position, which can differ
 		// from state after scroll-around.
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		m.revertIfNeeded()
 		m.quitting = true
 		return m, tea.Quit
 	case "esc":
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		m.revertIfNeeded()
 		m.quitting = true
 		return m, tea.Quit
 	case "enter":
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		if err := Set(m.themes[m.cursor].Name, SetOptions{Commit: true}); err != nil {
 			m.err = err
 		}
@@ -232,26 +249,26 @@ func (m *pickerModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "L":
 		m.liveApply = !m.liveApply
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		return m, nil
 	case "w":
 		// Open the wallpaper subpicker for the currently-active theme (the
 		// one whose colors are on screen), not the one under cursor. Tunnel
 		// the intent via openWallpaperAfter — tea.Sequence(tea.Quit, cmd)
 		// doesn't work because Quit terminates the loop before cmd runs.
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		m.openWallpaperAfter = true
 		m.quitting = true
 		return m, tea.Quit
 	case "i":
 		// Open the install-from-URL prompt. Same tunnel pattern as `w`.
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		m.openInstallAfter = true
 		m.quitting = true
 		return m, tea.Quit
 	case "s":
 		// Open the settings panel for the active theme. Same tunnel pattern.
-		m.cancelWallpaperPreview()
+		m.cancelPreviews()
 		m.openSettingsAfter = true
 		m.quitting = true
 		return m, tea.Quit
@@ -298,6 +315,7 @@ func (m *pickerModel) revertIfNeeded() {
 	current := xdgCurrentThemeName()
 	if current != "" && current != m.startedAt {
 		_ = Set(m.startedAt, SetOptions{Commit: false, SkipHooks: []string{"wallpaper"}})
+		_ = PreviewSketchybar(m.startedAt)
 	}
 	_ = applyWallpaperHook(themeDir(m.startedAt))
 }
@@ -313,8 +331,9 @@ func (m *pickerModel) move(delta int) (tea.Model, tea.Cmd) {
 	return m.applyPreview()
 }
 
-func (m *pickerModel) cancelWallpaperPreview() {
+func (m *pickerModel) cancelPreviews() {
 	m.wallpaperPreviewSeq++
+	m.sketchybarPreviewSeq++
 }
 
 func (m *pickerModel) scheduleWallpaperPreview(theme string) tea.Cmd {
@@ -341,9 +360,33 @@ func (m *pickerModel) handleWallpaperPreviewDone(msg wallpaperPreviewDoneMsg) (t
 	return m, nil
 }
 
+func (m *pickerModel) scheduleSketchybarPreview(theme string) tea.Cmd {
+	m.sketchybarPreviewSeq++
+	seq := m.sketchybarPreviewSeq
+	return tea.Tick(sketchybarPreviewDelay, func(time.Time) tea.Msg {
+		return sketchybarPreviewMsg{seq: seq, theme: theme}
+	})
+}
+
+func (m *pickerModel) handleSketchybarPreview(msg sketchybarPreviewMsg) (tea.Model, tea.Cmd) {
+	if msg.seq != m.sketchybarPreviewSeq || !m.liveApply || m.quitting || m.themes[m.cursor].Name != msg.theme {
+		return m, nil
+	}
+	return m, func() tea.Msg {
+		return sketchybarPreviewDoneMsg{seq: msg.seq, err: PreviewSketchybar(msg.theme)}
+	}
+}
+
+func (m *pickerModel) handleSketchybarPreviewDone(msg sketchybarPreviewDoneMsg) (tea.Model, tea.Cmd) {
+	// Preview errors are intentionally non-fatal; commit still reports hook
+	// failures through the normal Set path.
+	_ = msg
+	return m, nil
+}
+
 // applyPreview is called on cursor moves. It keeps fast retint hooks in the
-// synchronous Set path, but schedules wallpaper preview after cursor idle so
-// macOS wallpaper setters do not block Bubble Tea key handling.
+// synchronous Set path, but schedules wallpaper and sketchybar preview after
+// cursor idle so slow macOS setters/reloads do not block Bubble Tea key handling.
 func (m *pickerModel) applyPreview() (tea.Model, tea.Cmd) {
 	if !m.liveApply {
 		return m, nil
@@ -354,7 +397,7 @@ func (m *pickerModel) applyPreview() (tea.Model, tea.Cmd) {
 	for i := range m.themes {
 		m.themes[i].Current = m.themes[i].Name == name
 	}
-	return m, m.scheduleWallpaperPreview(name)
+	return m, tea.Batch(m.scheduleWallpaperPreview(name), m.scheduleSketchybarPreview(name))
 }
 
 func (m *pickerModel) View() string {

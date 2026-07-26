@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"time"
 )
@@ -19,19 +18,33 @@ type macosSidecar struct {
 	HighlightRGB string `json:"highlight_rgb"`
 }
 
+var (
+	macosLookPath = exec.LookPath
+	macosRun      = func(ctx context.Context, name string, args ...string) error {
+		return exec.CommandContext(ctx, name, args...).Run()
+	}
+)
+
+func runMacOSKillall(ctx context.Context, proc string) {
+	killCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer cancel()
+	_ = macosRun(killCtx, "killall", proc)
+}
+
 // hookMacOS applies the derived macos.json payload to macOS system settings.
 //
 // Writes `defaults NSGlobalDomain AppleAccentColor / AppleHighlightColor /
-// AppleInterfaceStyle` + AppleAquaColorVariant (1 or 6 for Graphite),
-// then posts Darwin distributed notifications via `notifyutil -p`:
+// AppleInterfaceStyle` + AppleAquaColorVariant (1 or 6 for Graphite), posts
+// Darwin distributed notifications, then restarts cached macOS UI processes:
 //
 //   - AppleColorPreferencesChangedNotification — accent + highlight
 //   - AppleAquaColorVariantChanged            — CoreUI aqua/accent repaint
 //   - NSSystemColorsDidChangeNotification     — Tahoe (macOS 26) forward-compat
 //
-// The hook intentionally does not restart Dock/SystemUIServer/Finder/cfprefsd:
-// those cascades can stall WindowServer during rapid consecutive swaps. Some
-// cached UI chrome may repaint on next login or a manual restart.
+// Dock/SystemUIServer cache accent-backed chrome aggressively. Restart them on
+// commit so the Dock/menu bar repaint immediately instead of waiting for the
+// next login or manual restart. cfprefsd is restarted after the defaults writes
+// so clients re-read fresh preference values.
 //
 // Mode (dark/light) is set via osascript because `defaults write` alone
 // on AppleInterfaceStyle does not fire the appearance-change notification.
@@ -40,18 +53,21 @@ type macosSidecar struct {
 // Darwin only. RunPreview=false (accent flash on scroll is jarring),
 // RunCommit=true.
 func hookMacOS(ctx context.Context, themeDir string) error {
-	if runtime.GOOS != "darwin" {
-		return nil // no-op on non-Darwin
+	if runtimeGOOS() != "darwin" {
+		return nil // no-op outside macOS
 	}
 
 	sidecar := filepath.Join(themeDir, "derived", "macos.json")
-	if _, err := os.Stat(sidecar); err != nil {
-		// Fallback to legacy dotfile location for one release.
+	if _, statErr := os.Stat(sidecar); statErr != nil {
 		alt := filepath.Join(themeDir, ".macos.json")
-		if _, err2 := os.Stat(alt); err2 != nil {
-			return nil // no payload
+		if _, altErr := os.Stat(alt); altErr == nil {
+			sidecar = alt
+		} else {
+			sidecar = ""
 		}
-		sidecar = alt
+	}
+	if sidecar == "" {
+		return nil
 	}
 
 	raw, err := os.ReadFile(sidecar)
@@ -74,48 +90,49 @@ func hookMacOS(ctx context.Context, themeDir string) error {
 		if setDark {
 			val = "true"
 		}
-		script := fmt.Sprintf(`tell app "System Events" to tell appearance preferences to set dark mode to %s`, val)
-		_ = exec.CommandContext(modeCtx, "osascript", "-e", script).Run()
+		script := `tell app "System Events" to tell appearance preferences to set dark mode to ` + val
+
+		_ = macosRun(modeCtx, "osascript", "-e", script)
 		cancel()
 
 		if setDark {
-			_ = exec.CommandContext(ctx, "defaults", "write", "-g", "AppleInterfaceStyle", "-string", "Dark").Run()
+			_ = macosRun(ctx, "defaults", "write", "-g", "AppleInterfaceStyle", "-string", "Dark")
 		} else {
-			_ = exec.CommandContext(ctx, "defaults", "delete", "-g", "AppleInterfaceStyle").Run()
+			_ = macosRun(ctx, "defaults", "delete", "-g", "AppleInterfaceStyle")
 		}
 	}
 
 	// --- Accent + Aqua variant --------------------------------------------
 	if s.AccentInt != nil {
 		accent := strconv.Itoa(*s.AccentInt)
-		_ = exec.CommandContext(ctx, "defaults", "write", "NSGlobalDomain",
-			"AppleAccentColor", "-int", accent).Run()
+		_ = macosRun(ctx, "defaults", "write", "NSGlobalDomain",
+			"AppleAccentColor", "-int", accent)
 		// AquaColorVariant: 1 = normal accent, 6 = Graphite override.
 		// macOS 26 checks the variant first so both writes are required.
 		variant := "1"
 		if *s.AccentInt == -1 {
 			variant = "6"
 		}
-		_ = exec.CommandContext(ctx, "defaults", "write", "NSGlobalDomain",
-			"AppleAquaColorVariant", "-int", variant).Run()
+		_ = macosRun(ctx, "defaults", "write", "NSGlobalDomain",
+			"AppleAquaColorVariant", "-int", variant)
 	}
 
 	// --- Highlight color --------------------------------------------------
 	if s.HighlightRGB != "" {
-		_ = exec.CommandContext(ctx, "defaults", "write", "NSGlobalDomain",
-			"AppleHighlightColor", "-string", s.HighlightRGB).Run()
+		_ = macosRun(ctx, "defaults", "write", "NSGlobalDomain",
+			"AppleHighlightColor", "-string", s.HighlightRGB)
 	}
 
 	// --- Propagate --------------------------------------------------------
-	//
-	// Notification-only propagation avoids Dock/SystemUIServer/Finder/cfprefsd
-	// restart cascades that can stall WindowServer during rapid consecutive
-	// swaps. Most Cocoa apps that observe accent redraw on these notifications;
-	// cached UI chrome can wait for next login/manual restart.
-	if _, err := exec.LookPath("notifyutil"); err == nil {
-		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleColorPreferencesChangedNotification").Run()
-		_ = exec.CommandContext(ctx, "notifyutil", "-p", "AppleAquaColorVariantChanged").Run()
-		_ = exec.CommandContext(ctx, "notifyutil", "-p", "NSSystemColorsDidChangeNotification").Run()
+	if _, err := macosLookPath("notifyutil"); err == nil {
+		_ = macosRun(ctx, "notifyutil", "-p", "AppleColorPreferencesChangedNotification")
+		_ = macosRun(ctx, "notifyutil", "-p", "AppleAquaColorVariantChanged")
+		_ = macosRun(ctx, "notifyutil", "-p", "NSSystemColorsDidChangeNotification")
 	}
+
+	for _, proc := range []string{"cfprefsd", "Dock", "SystemUIServer"} {
+		runMacOSKillall(ctx, proc)
+	}
+
 	return nil
 }
