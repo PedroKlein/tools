@@ -88,6 +88,32 @@ func TestEmittersWave4SmokeAgainstOsakaJade(t *testing.T) {
 			t.Errorf("opencode output = %q, want osaka-jade", strings.TrimSpace(buf.String()))
 		}
 	})
+
+	t.Run("tuicr", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := got["tuicr"].Emit(th, &buf); err != nil {
+			t.Fatalf("Emit: %v", err)
+		}
+		out := buf.String()
+		for _, want := range []string{"panel_bg =", "diff_add =", "syntax_theme = \"current.tmTheme\"", "mode_bg ="} {
+			if !strings.Contains(out, want) {
+				t.Errorf("missing %q:\n%s", want, out)
+			}
+		}
+	})
+
+	t.Run("obsidian", func(t *testing.T) {
+		var buf bytes.Buffer
+		if err := got["obsidian"].Emit(th, &buf); err != nil {
+			t.Fatalf("Emit: %v", err)
+		}
+		out := buf.String()
+		for _, want := range []string{"--background-primary", "--text-normal", "--interactive-accent", "--code-keyword"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("missing %q:\n%s", want, out)
+			}
+		}
+	})
 }
 
 // minimalThemeJSON is a valid theme.json with only required fields set.

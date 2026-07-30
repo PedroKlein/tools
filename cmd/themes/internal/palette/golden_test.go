@@ -19,7 +19,7 @@ var updateGoldens = flag.Bool("update", false, "rewrite golden emitter outputs u
 //
 // The wallpaper "emitter" is a resolver, not a file emit — it is
 // therefore not in EmittersV4 and does not require a golden. The other
-// 18 emitters do.
+// 21 emitters do.
 func TestGoldenAllEmitters(t *testing.T) {
 	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
@@ -30,8 +30,8 @@ func TestGoldenAllEmitters(t *testing.T) {
 		t.Fatalf("mkdir goldens: %v", err)
 	}
 
-	if len(EmittersV4) < 18 {
-		t.Errorf("EmittersV4 has %d entries, want >= 18 (18 file emitters + wallpaper resolver = 19 conceptual apps)", len(EmittersV4))
+	if len(EmittersV4) < 21 {
+		t.Errorf("EmittersV4 has %d entries, want >= 21 (21 file emitters + wallpaper resolver = 22 conceptual apps)", len(EmittersV4))
 	}
 
 	for _, e := range EmittersV4 {

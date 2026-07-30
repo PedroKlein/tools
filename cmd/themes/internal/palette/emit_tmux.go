@@ -9,32 +9,24 @@ import (
 //
 // TRANSPARENCY-FIRST DESIGN
 // =========================
-// Every tmux cell uses `bg=default`. NO explicit bg colors anywhere. This
-// is critical: Ghostty's `background-opacity-cells = true` policy applies
-// opacity to all cells uniformly, but only cells with bg=default (i.e.,
-// cells where tmux has NOT overridden the bg) actually pick up runtime
-// bg changes from OSC 11. Any cell with an explicit bg color renders opaque
-// in that hex color and stands out as a solid block against the
+// Permanent tmux chrome uses `bg=default`. This is critical: Ghostty's
+// `background-opacity-cells = true` policy applies opacity uniformly, but
+// cells where tmux sets a hex background render as solid blocks against the
 // translucent terminal bg.
 //
-// Visual differentiation therefore uses:
+// Visual differentiation for permanent chrome therefore uses:
 //   * fg colors (accent for active window, muted for inactive, warning
 //     for activity, error for bell, etc.)
 //   * bold/italic attributes
-//   * `reverse` attribute — swaps fg and bg at render time, giving a
-//     pill effect without emitting an explicit bg. Used for mode-style
-//     and copy-mode match styles where a pill is visually clearer
-//     than a fg-only accent.
-//   * marker glyphs (▸ for active window, brackets for PREFIX/COPY
-//     badges)
+//   * marker glyphs (▸ for active window, brackets for PREFIX/COPY badges)
 //
-// The `reverse` compromise: rendered pills WILL be opaque against the
-// terminal bg (that's the whole point of reverse), but they exist only
-// during copy-mode / visual selection / :prompt — transient UI, not
-// permanent chrome. Accepted per docs/plans/theme-transparency.md.
+// Copy-mode selection is different: it is transient functional UI, and it
+// must stay readable while selecting text. We intentionally use explicit
+// high-contrast backgrounds for mode-style and copy-mode search matches so
+// the highlight does not collapse into a translucent pane background.
 //
 // See docs/plans/theme-transparency.md § Phase 3 for the full rationale
-// and the AC that grep -cE 'bg=(percent-s|hash)' in this file must return 0.
+// behind keeping permanent tmux chrome transparent.
 
 type tmuxEmitter struct{}
 
@@ -52,7 +44,7 @@ func emitTmuxSemantic(t *Theme, w io.Writer) error {
 	muted := s.Muted
 	border := s.Border
 	borderActive := s.Accent2
-	ok := s.Ok               // PREFIX badge fg
+	ok := s.Ok                // PREFIX badge fg
 	cyan := t.Palette.Ansi[6] // COPY badge fg
 
 	// --- status bar container ------------------------------------------
@@ -93,13 +85,15 @@ func emitTmuxSemantic(t *Theme, w io.Writer) error {
 	// warning fg on default bg keeps it visible without an opaque bar.
 	fmt.Fprintf(w, "set -g message-style \"bg=default,fg=%s,bold\"\n", s.Warning)
 	fmt.Fprintf(w, "set -g message-command-style \"bg=default,fg=%s,bold\"\n", accent)
-	// mode-style: visual selection in copy-mode. `reverse` gives a pill
-	// effect (rendered as fg-of-accent on bg-of-terminal-fg) without an
-	// explicit bg color; transient UI only.
-	fmt.Fprintf(w, "set -g mode-style \"bg=default,fg=%s,reverse\"\n", accent)
+	// mode-style and copy-mode matches are transient functional UI. Use
+	// explicit high-contrast backgrounds here instead of reverse+default: in
+	// translucent Ghostty panes, reverse+default can collapse into the pane bg
+	// and make the selected text unreadable.
+	fmt.Fprintf(w, "set -g mode-style \"bg=%s,fg=%s\"\n", accent, s.Bg)
+	fmt.Fprintf(w, "set -g copy-mode-selection-style \"bg=%s,fg=%s\"\n", accent, s.Bg)
 	fmt.Fprintf(w, "set -g clock-mode-colour \"%s\"\n", accent)
-	fmt.Fprintf(w, "set -g copy-mode-match-style \"bg=default,fg=%s,reverse\"\n", s.Warning)
-	fmt.Fprintf(w, "set -g copy-mode-current-match-style \"bg=default,fg=%s,reverse,bold\"\n", accent)
+	fmt.Fprintf(w, "set -g copy-mode-match-style \"bg=%s,fg=%s\"\n", s.Warning, s.Bg)
+	fmt.Fprintf(w, "set -g copy-mode-current-match-style \"bg=%s,fg=%s,bold\"\n", accent, s.Bg)
 
 	// --- status-left: PREFIX / COPY badges + session name -------------
 	// Badges are bracket-decorated bold fg-only. Previously colored pills

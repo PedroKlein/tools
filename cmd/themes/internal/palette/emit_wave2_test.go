@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-// TestEmittersWave2SmokeAgainstOsakaJade runs the 4 wave-2 emitters
+// TestEmittersWave2SmokeAgainstOsakaJade runs the wave-2 emitters
 // against osaka-jade and asserts each output has correct semantic
-// content plus (for pi.json) valid JSON.
+// content plus valid agent theme JSON.
 func TestEmittersWave2SmokeAgainstOsakaJade(t *testing.T) {
 	th, err := Load(filepath.Join("testdata", "osaka-jade"))
 	if err != nil {
@@ -122,6 +122,42 @@ func TestEmittersWave2SmokeAgainstOsakaJade(t *testing.T) {
 			if v, ok := colors[k].(string); !ok || v != "" {
 				t.Errorf("pi.colors.%s = %q, want \"\" (Pi runtime picks a context-aware default)", k, v)
 			}
+		}
+	})
+
+	t.Run("omp", func(t *testing.T) {
+		e := got["omp"]
+		if e == nil {
+			t.Fatal("omp emitter missing")
+		}
+		if e.Filename() != "omp.json" {
+			t.Errorf("Filename() = %q, want omp.json", e.Filename())
+		}
+		var buf bytes.Buffer
+		if err := e.Emit(th, &buf); err != nil {
+			t.Fatalf("Emit: %v", err)
+		}
+
+		var m map[string]any
+		if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
+			t.Fatalf("omp.json is not valid JSON: %v\n%s", err, buf.String())
+		}
+		if m["name"] != "osaka-jade" {
+			t.Errorf("omp.name = %v, want osaka-jade", m["name"])
+		}
+		vars := m["vars"].(map[string]any)
+		if vars["bg"] != th.Palette.Semantic.Bg {
+			t.Errorf("omp.vars.bg = %v, want %s", vars["bg"], th.Palette.Semantic.Bg)
+		}
+		colors := m["colors"].(map[string]any)
+		for _, k := range []string{"accent", "text", "thinkingText", "selectedBg", "statusLineModel", "statusLineSubagents"} {
+			if _, ok := colors[k]; !ok {
+				t.Errorf("omp.colors missing %s", k)
+			}
+		}
+		symbols := m["symbols"].(map[string]any)
+		if symbols["preset"] != "nerd" {
+			t.Errorf("omp.symbols.preset = %v, want nerd", symbols["preset"])
 		}
 	})
 

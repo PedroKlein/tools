@@ -1,6 +1,6 @@
 # `themes`
 
-macOS theme switcher for Ghostty, tmux, Neovim, Sketchybar, Aerospace, Starship, Pi, and related CLI tools.
+macOS theme switcher for Ghostty, tmux, Neovim, Sketchybar, Aerospace, Starship, Pi, OMP, tuicr, Obsidian, and related CLI tools.
 
 **Companion CLI to** [`pia`](../pia), [`repos`](../repos), [`q`](../q), [`todo`](../todo). Shares the same conventions:
 

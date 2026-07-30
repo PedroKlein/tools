@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestBaselinesExistForAllExpectedApps verifies AC-1: 19 baseline files
+// TestBaselinesExistForAllExpectedApps verifies AC-1: 22 baseline files
 // exist under internal/palette/baselines/.
 func TestBaselinesExistForAllExpectedApps(t *testing.T) {
 	got, err := KnownBaselines()
@@ -16,11 +16,11 @@ func TestBaselinesExistForAllExpectedApps(t *testing.T) {
 	want := []string{
 		"aerospace", "bat", "btop", "delta", "fzf",
 		"gh-dash", "ghostty", "k9s", "lazygit", "macos",
-		"nvim", "opencode", "pi", "sketchybar", "starship",
-		"television", "tmux", "wallpaper", "zsh-syntax-highlight",
+		"nvim", "obsidian", "omp", "opencode", "pi", "sketchybar", "starship",
+		"television", "tmux", "tuicr", "wallpaper", "zsh-syntax-highlight",
 	}
-	if len(got) < 19 {
-		t.Errorf("KnownBaselines returned %d, want >= 19: %v", len(got), got)
+	if len(got) < 22 {
+		t.Errorf("KnownBaselines returned %d, want >= 22: %v", len(got), got)
 	}
 	set := map[string]bool{}
 	for _, a := range got {

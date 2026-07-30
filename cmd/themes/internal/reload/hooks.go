@@ -73,6 +73,15 @@ var registry = []Hook{
 		LiveApply:    true, // running nvim instances retint via Signal SIGUSR1 autocmd + theme_loader.reload()
 	},
 	{
+		// Reads <theme>/derived/omp.json, forces .name="current", and
+		// atomically writes ~/.omp/agent/themes/current.json. OMP watches the
+		// active custom theme file and retints running sessions on byte changes.
+		Name:       "omp",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn:         hookOMP,
+	},
+	{
 		Name:      "opencode",
 		Kind:      KindInline,
 		Fn:        reloadOpencode,

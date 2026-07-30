@@ -40,6 +40,7 @@ func TestEmittersWave1SmokeAgainstOsakaJade(t *testing.T) {
 				"tmux-battery/scripts/battery_percentage.sh",
 				"#{?client_prefix,",
 				"#{?pane_in_mode,",
+				"copy-mode-selection-style",
 				"copy-mode-match-style",
 				"copy-mode-current-match-style",
 			}

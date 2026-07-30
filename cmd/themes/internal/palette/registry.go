@@ -15,6 +15,7 @@ func init() {
 		// Wave 2: editor + shell.
 		nvimEmitter{},
 		piEmitter{},
+		ompEmitter{},
 		fzfEmitter{},
 		zshHighlightEmitter{},
 		// Wave 3: git tools + pagers.
@@ -27,6 +28,8 @@ func init() {
 		televisionEmitter{},
 		btopEmitter{},
 		opencodeEmitter{},
+		tuicrEmitter{},
+		obsidianEmitter{},
 		// Wave 5: macOS system (wallpaper is a resolver, not a file emit).
 		macosEmitter{},
 	)
