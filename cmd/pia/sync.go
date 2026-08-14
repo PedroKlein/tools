@@ -57,7 +57,12 @@ func syncProfile(agentDir, name string, profile Profile) error {
 		return fmt.Errorf("syncing resources: %w", err)
 	}
 
-	// 4. Ensure sessions dir exists (never touch contents)
+	// 4. Profile MCP config: symlink profiles/<name>/mcp.json if present
+	if err := syncMcp(agentDir, outDir, name); err != nil {
+		return fmt.Errorf("syncing mcp: %w", err)
+	}
+
+	// 5. Ensure sessions dir exists (never touch contents)
 	if err := os.MkdirAll(filepath.Join(outDir, "sessions"), 0o750); err != nil {
 		return fmt.Errorf("creating sessions dir: %w", err)
 	}
@@ -179,6 +184,29 @@ func syncResources(agentDir, outDir string) error {
 		if err := os.Symlink(src, dst); err != nil {
 			return fmt.Errorf("symlinking %s: %w", res, err)
 		}
+	}
+
+	return nil
+}
+
+// syncMcp symlinks the per-profile mcp.json into the profile's agent dir when
+// present. Profiles without an mcp.json entry are left untouched so a user's
+// hand-written <outDir>/mcp.json is never clobbered by an inference. When the
+// profile does ship an mcp.json, an existing target (symlink, or regular file
+// like the ones agent-personal/mcp.json used to be) is removed and replaced
+// with a symlink to the dotfiles source of truth.
+func syncMcp(agentDir, outDir, name string) error {
+	src := filepath.Join(agentDir, "profiles", name, "mcp.json")
+	if _, err := os.Stat(src); os.IsNotExist(err) {
+		return nil // profile has no MCP config
+	}
+
+	dst := filepath.Join(outDir, "mcp.json")
+	// Remove existing symlink/file before recreating
+	_ = os.Remove(dst) // best-effort cleanup before recreating symlink
+
+	if err := os.Symlink(src, dst); err != nil {
+		return fmt.Errorf("symlinking mcp.json: %w", err)
 	}
 
 	return nil

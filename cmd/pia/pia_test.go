@@ -399,3 +399,99 @@ func TestSyncIdempotent(t *testing.T) {
 		t.Fatalf("second sync: %v", err)
 	}
 }
+
+func TestSyncMcpSymlinked(t *testing.T) {
+	agentDir := t.TempDir()
+	os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o644) //nolint:gosec // test setup
+	profileDir := filepath.Join(agentDir, "profiles", "research")
+	os.MkdirAll(profileDir, 0o755) //nolint:gosec // test setup
+
+	mcpSrc := filepath.Join(profileDir, "mcp.json")
+	os.WriteFile(mcpSrc, []byte(`{"mcpServers":{"zra-mcp":{}}}`), 0o644) //nolint:gosec // test setup
+
+	profile := Profile{}
+	profileData, _ := json.Marshal(profile)
+	os.WriteFile(filepath.Join(profileDir, "profile.json"), profileData, 0o644) //nolint:gosec // test setup
+
+	if err := syncProfile(agentDir, "research", profile); err != nil {
+		t.Fatalf("syncProfile: %v", err)
+	}
+
+	outDir := filepath.Join(filepath.Dir(agentDir), "agent-research")
+	mcpDst := filepath.Join(outDir, "mcp.json")
+
+	target, err := os.Readlink(mcpDst)
+	if err != nil {
+		t.Fatalf("mcp.json not symlinked: %v", err)
+	}
+
+	if target != mcpSrc {
+		t.Errorf("mcp.json target %q, want %q", target, mcpSrc)
+	}
+}
+
+func TestSyncMcpMissingLeavesTargetUntouched(t *testing.T) {
+	agentDir := t.TempDir()
+	os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o644) //nolint:gosec // test setup
+	profileDir := filepath.Join(agentDir, "profiles", "quick")
+	os.MkdirAll(profileDir, 0o755) //nolint:gosec // test setup
+
+	profile := Profile{}
+	profileData, _ := json.Marshal(profile)
+	os.WriteFile(filepath.Join(profileDir, "profile.json"), profileData, 0o644) //nolint:gosec // test setup
+
+	// Pre-existing hand-written mcp.json in the output dir; the sync must not
+	// clobber it when the profile has no mcp.json of its own.
+	outDir := filepath.Join(filepath.Dir(agentDir), "agent-quick")
+	os.MkdirAll(outDir, 0o750) //nolint:gosec // test setup
+
+	preExisting := []byte(`{"mcpServers":{"user-added":{}}}`)
+	os.WriteFile(filepath.Join(outDir, "mcp.json"), preExisting, 0o600) //nolint:gosec // test setup
+
+	if err := syncProfile(agentDir, "quick", profile); err != nil {
+		t.Fatalf("syncProfile: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(outDir, "mcp.json")) //nolint:gosec // path from t.TempDir()
+	if err != nil {
+		t.Fatalf("reading mcp.json: %v", err)
+	}
+
+	if string(got) != string(preExisting) {
+		t.Errorf("mcp.json was rewritten: got %q, want %q", got, preExisting)
+	}
+}
+
+func TestSyncMcpReplacesRegularFile(t *testing.T) {
+	// Migration case: agent-personal/mcp.json was a regular file (hand-copied
+	// content), and pia now ships a profile mcp.json. The sync must replace
+	// the regular file with a symlink pointing at the dotfiles source.
+	agentDir := t.TempDir()
+	os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o644) //nolint:gosec // test setup
+	profileDir := filepath.Join(agentDir, "profiles", "personal")
+	os.MkdirAll(profileDir, 0o755) //nolint:gosec // test setup
+
+	mcpSrc := filepath.Join(profileDir, "mcp.json")
+	os.WriteFile(mcpSrc, []byte(`{"mcpServers":{"ticktick":{}}}`), 0o644) //nolint:gosec // test setup
+
+	profile := Profile{}
+	profileData, _ := json.Marshal(profile)
+	os.WriteFile(filepath.Join(profileDir, "profile.json"), profileData, 0o644) //nolint:gosec // test setup
+
+	outDir := filepath.Join(filepath.Dir(agentDir), "agent-personal")
+	os.MkdirAll(outDir, 0o750)                                                       //nolint:gosec // test setup
+	os.WriteFile(filepath.Join(outDir, "mcp.json"), []byte(`{"stale":true}`), 0o600) //nolint:gosec // test setup
+
+	if err := syncProfile(agentDir, "personal", profile); err != nil {
+		t.Fatalf("syncProfile: %v", err)
+	}
+
+	target, err := os.Readlink(filepath.Join(outDir, "mcp.json"))
+	if err != nil {
+		t.Fatalf("mcp.json is not a symlink after sync: %v", err)
+	}
+
+	if target != mcpSrc {
+		t.Errorf("mcp.json target %q, want %q", target, mcpSrc)
+	}
+}
