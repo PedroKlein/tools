@@ -2,18 +2,24 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 )
 
 // OpenResult is the JSON output for repos open.
 type OpenResult struct {
-	Session string `json:"session"`
-	Path    string `json:"path"`
-	Created bool   `json:"created"` // true = new session, false = switched to existing
+	Workspace string `json:"workspace"`
+	Path      string `json:"path"`
+	Created   bool   `json:"created"`
+	Focused   bool   `json:"focused"`
+}
+
+type herdrWorkspace struct {
+	ID    string `json:"workspace_id"`
+	Label string `json:"label"`
 }
 
 func runOpen(args []string) {
@@ -24,74 +30,103 @@ func runOpen(args []string) {
 
 	repoPath, relPath, err := resolveRepo(query)
 	if err != nil {
-		if jsonOutput {
-			writeJSONError(err.Error(), ExitError)
-		}
-
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(ExitError)
+		openError(err.Error())
 	}
 
-	// Check tmux is available
-	if _, err := exec.LookPath("tmux"); err != nil {
-		if jsonOutput {
-			writeJSONError("tmux not found in PATH", ExitError)
-		}
-
-		fmt.Fprintln(os.Stderr, "error: tmux not found in PATH")
-		os.Exit(ExitError)
+	if _, lookErr := exec.LookPath("herdr"); lookErr != nil {
+		openError("Herdr not found in PATH")
 	}
 
-	// Session name: repo name (last component), dots replaced with dashes
-	sessionName := filepath.Base(relPath)
-	sessionName = strings.ReplaceAll(sessionName, ".", "-")
-
+	workspaceLabel := relPath
 	worktreeDir := defaultWorktreePath(repoPath)
 
-	// Check if session already exists
-	sessionExists := exec.Command("tmux", "has-session", "-t", sessionName).Run() == nil
-	created := !sessionExists
-
-	if !sessionExists {
-		// Create new detached session with nvim . in the worktree dir
-		cmd := exec.Command("tmux", "new-session", "-d", "-s", sessionName, "-c", worktreeDir, "nvim", ".")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			if jsonOutput {
-				writeJSONError(fmt.Sprintf("failed to create tmux session: %v", err), ExitError)
-			}
-
-			fmt.Fprintf(os.Stderr, "error creating tmux session: %v\n%s", err, out)
-			os.Exit(ExitError)
-		}
+	workspaceID, created, err := openHerdrWorkspace(worktreeDir, workspaceLabel)
+	if err != nil {
+		openError(err.Error())
 	}
 
-	// Emit JSON before switching (after switch we may lose the terminal)
 	if jsonOutput {
-		result := OpenResult{Session: sessionName, Path: worktreeDir, Created: created}
-		data, _ := json.Marshal(result)
-		fmt.Println(string(data))
+		writeJSON(OpenResult{
+			Workspace: workspaceID,
+			Path:      worktreeDir,
+			Created:   created,
+			Focused:   true,
+		})
+
+		return
 	}
 
-	// Switch or attach
-	inTmux := os.Getenv("TMUX") != ""
-	if inTmux {
-		_ = exec.Command("tmux", "switch-client", "-t", sessionName).Run()
+	action := "focused"
+	if created {
+		action = "opened"
+	}
 
-		if !jsonOutput {
-			// switch-client is instant; message is visible briefly before the switch
-			action := "opened"
-			if !created {
-				action = "switched to"
-			}
+	fmt.Printf("%s %s (workspace: %s)\n", action, relPath, workspaceLabel)
+}
 
-			fmt.Printf("%s %s (session: %s)\n", action, relPath, sessionName)
+func openHerdrWorkspace(worktreeDir, workspaceLabel string) (workspaceID string, created bool, err error) {
+	out, err := runHerdr(worktreeDir, "workspace", "list")
+	if err != nil {
+		return "", false, fmt.Errorf("listing Herdr workspaces: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	var listResponse struct {
+		Result struct {
+			Workspaces []herdrWorkspace `json:"workspaces"`
+		} `json:"result"`
+	}
+
+	if decodeErr := json.Unmarshal(out, &listResponse); decodeErr != nil {
+		return "", false, fmt.Errorf("decoding Herdr workspace list: %w", decodeErr)
+	}
+
+	for _, workspace := range listResponse.Result.Workspaces {
+		if workspace.Label != workspaceLabel {
+			continue
 		}
-	} else {
-		// Attach blocks until the user detaches — no message needed
-		cmd := exec.Command("tmux", "attach-session", "-t", sessionName)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Run() //nolint:errcheck,gosec // attach blocks until user detaches; non-zero exit is normal
+
+		focusOutput, focusErr := runHerdr(worktreeDir, "workspace", "focus", workspace.ID)
+		if focusErr != nil {
+			return "", false, fmt.Errorf("focusing Herdr workspace: %w: %s", focusErr, strings.TrimSpace(string(focusOutput)))
+		}
+
+		return workspace.ID, false, nil
 	}
+
+	out, err = runHerdr(worktreeDir, "workspace", "create", "--cwd", worktreeDir, "--label", workspaceLabel, "--focus")
+	if err != nil {
+		return "", false, fmt.Errorf("creating Herdr workspace: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	var createResponse struct {
+		Result struct {
+			Workspace herdrWorkspace `json:"workspace"`
+		} `json:"result"`
+	}
+
+	if decodeErr := json.Unmarshal(out, &createResponse); decodeErr != nil {
+		return "", false, fmt.Errorf("decoding Herdr workspace create: %w", decodeErr)
+	}
+
+	if createResponse.Result.Workspace.ID == "" {
+		return "", false, errors.New("decoding Herdr workspace create: response has no workspace id")
+	}
+
+	return createResponse.Result.Workspace.ID, true, nil
+}
+
+func runHerdr(dir string, args ...string) ([]byte, error) {
+	cmd := exec.Command("herdr", args...)
+	cmd.Dir = dir
+
+	return cmd.CombinedOutput() //nolint:wrapcheck // caller adds workspace operation context
+}
+
+func openError(message string) {
+	if jsonOutput {
+		writeJSONError(message, ExitError)
+	}
+
+	fmt.Fprintf(os.Stderr, "error: %s\n", message)
+	os.Exit(ExitError)
 }

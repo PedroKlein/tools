@@ -23,7 +23,7 @@ repos audit [query]           # Check for dirty worktrees / unpushed branches
 repos sync [query]            # Fetch + fast-forward default branch
 repos tidy [query]            # Fix stale HEAD refs, prune stale worktrees
 repos wt [branch]             # Context-aware worktree create/list/remove
-repos open [query]            # Open repo in tmux + nvim session
+repos open [query]            # Open or focus a Herdr workspace
 repos browse [query]          # Open repo URL in browser
 repos exec <query> -- <cmd>   # Run command across matching repos
 repos export [-o file]        # Export all repos to JSON manifest
@@ -79,6 +79,15 @@ repos wt -d feature-auth    # Remove worktree
 ```
 
 Use `-r <query>` to target a different repo than the current CWD.
+
+## Opening repositories
+
+`repos open` creates a focused Herdr workspace rooted at the default worktree. It uses the canonical `host/owner/repo` path as the workspace label, so repositories with the same name remain distinct. If that workspace already exists, it focuses it instead.
+
+```bash
+repos open myproject
+repos open myproject --json
+```
 
 ## Hooks
 

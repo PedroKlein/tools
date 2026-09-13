@@ -42,6 +42,7 @@ run = [
   "go install ./cmd/pia",
   "go install ./cmd/repos",
   "go install ./cmd/todo",
+  "go install ./cmd/themes",
 ]
 
 [tasks.clean]
