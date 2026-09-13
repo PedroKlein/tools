@@ -32,6 +32,14 @@ func TestEmittersWave4SmokeAgainstOsakaJade(t *testing.T) {
 				t.Errorf("missing %q:\n%s", want, out)
 			}
 		}
+		if strings.Count(out, "\nk9s:") != 1 {
+			t.Errorf("k9s skin must contain one top-level k9s key; got:\n%s", out)
+		}
+		for _, want := range []string{"cursorFgColor:", "cursorBgColor:"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("missing %q:\n%s", want, out)
+			}
+		}
 	})
 
 	t.Run("television", func(t *testing.T) {
@@ -39,13 +47,8 @@ func TestEmittersWave4SmokeAgainstOsakaJade(t *testing.T) {
 		if err := got["television"].Emit(th, &buf); err != nil {
 			t.Fatalf("Emit: %v", err)
 		}
-		out := buf.String()
-		if !strings.Contains(out, "[ui.theme]") {
-			t.Errorf("missing [ui.theme]:\n%s", out)
-		}
-		if !strings.Contains(out, `name = "osaka-jade"`) {
-			t.Errorf("missing theme name:\n%s", out)
-		}
+
+		assertTelevisionTheme(t, buf.String())
 	})
 
 	t.Run("btop-with-gradients", func(t *testing.T) {
@@ -114,6 +117,42 @@ func TestEmittersWave4SmokeAgainstOsakaJade(t *testing.T) {
 			}
 		}
 	})
+}
+
+func assertTelevisionTheme(t *testing.T, out string) {
+	t.Helper()
+
+	wantFields := []string{
+		`background = "#111C18"`,
+		`border_fg = "#509475"`,
+		`text_fg = "#C1C497"`,
+		`dimmed_text_fg = "#627A6C"`,
+		`input_text_fg = "#549E6A"`,
+		`result_count_fg = "#627A6C"`,
+		`result_name_fg = "#E5C736"`,
+		`result_line_number_fg = "#E5C736"`,
+		`result_value_fg = "#C1C497"`,
+		`selection_fg = "#C1C497"`,
+		`selection_bg = "#23372B"`,
+		`match_fg = "#E5C736"`,
+		`preview_title_fg = "#549E6A"`,
+		`channel_mode_fg = "#111C18"`,
+		`channel_mode_bg = "#E5C736"`,
+		`remote_control_mode_fg = "#111C18"`,
+		`remote_control_mode_bg = "#63B07A"`,
+		`action_picker_mode_fg = "#111C18"`,
+		`action_picker_mode_bg = "#549E6A"`,
+	}
+
+	for _, want := range wantFields {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q:\n%s", want, out)
+		}
+	}
+
+	if strings.Contains(out, "[") {
+		t.Errorf("standalone theme contains a TOML table:\n%s", out)
+	}
 }
 
 // minimalThemeJSON is a valid theme.json with only required fields set.

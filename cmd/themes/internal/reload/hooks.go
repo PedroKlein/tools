@@ -56,9 +56,16 @@ var registry = []Hook{
 		Fn:         hookGhostty,
 	},
 	{
-		Name:      "k9s",
-		Kind:      KindNoop,
-		LiveApply: false,
+		Name:       "herdr",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn:         hookHerdr,
+	},
+	{
+		Name:       "k9s",
+		RunPreview: true,
+		RunCommit:  true,
+		Fn:         hookK9s,
 	},
 	{
 		Name:      "lazygit",

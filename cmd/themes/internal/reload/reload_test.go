@@ -8,17 +8,17 @@ import (
 	"time"
 )
 
-// TestRegistryHas16Hooks pins the total hook count. AC requires >= 10.
+// TestRegistryHas17Hooks pins the total hook count. AC requires >= 10.
 // If you delete a hook, update this test explicitly to acknowledge the
 // removal — silent drift is the antipattern this guards against.
-func TestRegistryHas16Hooks(t *testing.T) {
+func TestRegistryHas17Hooks(t *testing.T) {
 	got := len(Registry())
 	if got < 10 {
 		t.Errorf("registry has %d hooks; AC requires >= 10", got)
 	}
-	// Current expected: 11 inline + 5 external = 16. Adjust intentionally.
-	if got != 16 {
-		t.Logf("registry has %d hooks; last-known count was 16", got)
+	// Current expected: 12 inline + 5 external = 17. Adjust intentionally.
+	if got != 17 {
+		t.Logf("registry has %d hooks; last-known count was 17", got)
 	}
 }
 
@@ -26,7 +26,7 @@ func TestRegistryStableOrder(t *testing.T) {
 	// Names are alphabetical for readability; if you reshuffle, do it
 	// deliberately.
 	names := []string{
-		"bat", "btop", "gh-dash", "ghostty", "k9s", "lazygit",
+		"bat", "btop", "gh-dash", "ghostty", "herdr", "k9s", "lazygit",
 		"nvim", "omp", "opencode", "sketchybar", "television",
 		"osc-broadcast", "macos-system", "pi", "tmux", "wallpaper",
 	}
