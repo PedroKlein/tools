@@ -7,26 +7,60 @@ import (
 	"path/filepath"
 )
 
-func runSync() {
+func runSync(names []string) {
 	agentDir := resolveAgentDir()
 
-	profiles, err := discoverProfiles(agentDir)
-	if err != nil {
+	if err := syncProfiles(agentDir, names); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
 
-	if len(profiles) == 0 {
-		fmt.Println("No profiles found in", filepath.Join(agentDir, "profiles"))
-		return
+func syncProfiles(agentDir string, names []string) error {
+	profiles, err := discoverProfiles(agentDir)
+	if err != nil {
+		return err
 	}
 
-	for name, profile := range profiles {
-		if err := syncProfile(agentDir, name, profile); err != nil {
-			fmt.Fprintf(os.Stderr, "error syncing %q: %v\n", name, err)
-			os.Exit(1)
+	if len(profiles) == 0 && len(names) == 0 {
+		fmt.Println("No profiles found in", filepath.Join(agentDir, "profiles"))
+
+		return nil
+	}
+
+	if len(names) == 0 {
+		for name := range profiles {
+			names = append(names, name)
 		}
 	}
+
+	selectedNames := make([]string, 0, len(names))
+	for _, name := range names {
+		found := false
+
+		for profileName := range profiles {
+			if profileName != name {
+				continue
+			}
+
+			selectedNames = append(selectedNames, profileName)
+			found = true
+
+			break
+		}
+
+		if !found {
+			return fmt.Errorf("profile %q not found", name)
+		}
+	}
+
+	for _, name := range selectedNames {
+		if err := syncProfile(agentDir, name, profiles[name]); err != nil {
+			return fmt.Errorf("syncing %q: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 func syncProfile(agentDir, name string, profile Profile) error {

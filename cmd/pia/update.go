@@ -50,7 +50,7 @@ func runUpdate() {
 
 	// 3. Re-sync profiles to pick up any new resources
 	fmt.Println("\nRe-syncing profiles...")
-	runSync()
+	runSync(nil)
 
 	fmt.Println("\n✓ All profiles updated")
 }

@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -271,6 +273,205 @@ func TestDeepMerge(t *testing.T) {
 			t.Errorf("got %v", result)
 		}
 	})
+}
+
+func TestSyncProfilesSelection(t *testing.T) {
+	tests := []struct {
+		name       string
+		profiles   map[string]Profile
+		selected   []string
+		wantSynced []string
+		wantAbsent []string
+		wantError  string
+	}{
+		{
+			name:       "no selection syncs all",
+			profiles:   map[string]Profile{"quick": {}, "research": {}},
+			wantSynced: []string{"quick", "research"},
+		},
+		{
+			name:       "one selection",
+			profiles:   map[string]Profile{"quick": {}, "research": {}},
+			selected:   []string{"quick"},
+			wantSynced: []string{"quick"},
+			wantAbsent: []string{"research"},
+		},
+		{
+			name:       "multiple selections",
+			profiles:   map[string]Profile{"personal": {}, "quick": {}, "research": {}},
+			selected:   []string{"quick", "research"},
+			wantSynced: []string{"quick", "research"},
+			wantAbsent: []string{"personal"},
+		},
+		{
+			name:       "unknown selection",
+			profiles:   map[string]Profile{"quick": {}},
+			selected:   []string{"quick", "missing"},
+			wantAbsent: []string{"quick"},
+			wantError:  `profile "missing" not found`,
+		},
+		{
+			name:      "unknown selection without profiles",
+			selected:  []string{"missing"},
+			wantError: `profile "missing" not found`,
+		},
+		{
+			name: "selected profile fails",
+			profiles: map[string]Profile{
+				"broken": {SharedExtensions: []string{"missing"}},
+				"quick":  {},
+			},
+			selected:   []string{"broken", "quick"},
+			wantAbsent: []string{"quick"},
+			wantError:  `syncing "broken": syncing extensions: shared extension "missing" not found at `,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agentDir := newSyncTestAgentDir(t, tt.profiles)
+			err := syncProfiles(agentDir, tt.selected)
+
+			if tt.wantError == "" && err != nil {
+				t.Fatalf("syncProfiles: %v", err)
+			}
+
+			if tt.wantError != "" && (err == nil || !strings.HasPrefix(err.Error(), tt.wantError)) {
+				t.Fatalf("error = %v, want prefix %q", err, tt.wantError)
+			}
+
+			for _, name := range tt.wantSynced {
+				settingsPath := filepath.Join(filepath.Dir(agentDir), "agent-"+name, "settings.json")
+				if _, statErr := os.Stat(settingsPath); statErr != nil {
+					t.Errorf("profile %q was not synced: %v", name, statErr)
+				}
+			}
+
+			for _, name := range tt.wantAbsent {
+				profileDir := filepath.Join(filepath.Dir(agentDir), "agent-"+name)
+				if _, statErr := os.Stat(profileDir); !os.IsNotExist(statErr) {
+					t.Errorf("profile %q was unexpectedly synced: %v", name, statErr)
+				}
+			}
+		})
+	}
+}
+
+func TestSyncCommandSelectionAndErrors(t *testing.T) {
+	tests := []struct {
+		name      string
+		selected  string
+		wantError string
+	}{
+		{name: "selected profile", selected: "quick"},
+		{name: "unknown profile", selected: "missing", wantError: "error: profile \"missing\" not found\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}, "research": {}})
+			cmd := piaCommand(t, agentDir, "sync", tt.selected)
+
+			out, err := cmd.CombinedOutput()
+			if tt.wantError != "" {
+				if err == nil {
+					t.Fatalf("pia sync succeeded, want error\n%s", out)
+				}
+
+				if string(out) != tt.wantError {
+					t.Fatalf("output = %q, want %q", out, tt.wantError)
+				}
+
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("pia sync: %v\n%s", err, out)
+			}
+
+			if _, statErr := os.Stat(filepath.Join(filepath.Dir(agentDir), "agent-quick", "settings.json")); statErr != nil {
+				t.Fatalf("quick profile was not synced: %v", statErr)
+			}
+
+			if _, statErr := os.Stat(filepath.Join(filepath.Dir(agentDir), "agent-research")); !os.IsNotExist(statErr) {
+				t.Fatalf("unselected research profile was synced: %v", statErr)
+			}
+		})
+	}
+}
+
+func TestPIAHelpDescribesSelectiveSync(t *testing.T) {
+	cmd := piaCommand(t, t.TempDir(), "help")
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pia help: %v\n%s", err, out)
+	}
+
+	if !strings.Contains(string(out), "pia sync [profile...]") {
+		t.Fatalf("help does not describe selective sync:\n%s", out)
+	}
+}
+
+func TestPIACommandHelper(_ *testing.T) {
+	if os.Getenv("PIA_COMMAND_HELPER") != "1" {
+		return
+	}
+
+	separator := 0
+
+	for i, arg := range os.Args {
+		if arg == "--" {
+			separator = i + 1
+			break
+		}
+	}
+
+	os.Args = os.Args[separator:]
+
+	main()
+}
+
+func piaCommand(t *testing.T, agentDir string, args ...string) *exec.Cmd {
+	t.Helper()
+
+	cmdArgs := append([]string{"-test.run=^TestPIACommandHelper$", "--", "pia"}, args...)
+	cmd := exec.Command(os.Args[0], cmdArgs...) //nolint:gosec // subprocess reruns the current test binary with fixed helper arguments
+
+	cmd.Env = append(os.Environ(), "PIA_COMMAND_HELPER=1", "PIA_AGENT_DIR="+agentDir)
+
+	return cmd
+}
+
+func newSyncTestAgentDir(t *testing.T, profiles map[string]Profile) string {
+	t.Helper()
+
+	agentDir := filepath.Join(t.TempDir(), "agent")
+	if err := os.MkdirAll(agentDir, 0o750); err != nil {
+		t.Fatalf("creating agent dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o644); err != nil { //nolint:gosec // test setup
+		t.Fatalf("writing settings: %v", err)
+	}
+
+	for name, profile := range profiles {
+		profileDir := filepath.Join(agentDir, "profiles", name)
+		if err := os.MkdirAll(profileDir, 0o750); err != nil {
+			t.Fatalf("creating profile dir: %v", err)
+		}
+
+		data, err := json.Marshal(profile)
+		if err != nil {
+			t.Fatalf("marshaling profile: %v", err)
+		}
+
+		if err := os.WriteFile(filepath.Join(profileDir, "profile.json"), data, 0o644); err != nil { //nolint:gosec // test setup
+			t.Fatalf("writing profile: %v", err)
+		}
+	}
+
+	return agentDir
 }
 
 func TestSyncProfile(t *testing.T) {

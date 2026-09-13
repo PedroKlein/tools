@@ -12,7 +12,7 @@ models, extensions, skills) without manually swapping config files.
 
 ```bash
 pia profile <name> [pi-args...]   # Launch pi with a named profile
-pia sync                          # Generate/update profile directories
+pia sync [profile...]             # Generate/update selected profiles (all by default)
 pia list                          # List available profiles
 pia show <profile>                # Show profile configuration
 pia update                        # Update pi + packages for all profiles
@@ -90,7 +90,9 @@ Tilde (`~`) in paths is expanded to `$HOME` automatically.
 
 ## How Sync Works
 
-`pia sync` generates a working Pi agent directory for each profile at `~/.pi/agent-<name>/`:
+`pia sync` generates a working Pi agent directory for every profile at `~/.pi/agent-<name>/`.
+Pass one or more names to sync only those profiles, for example `pia sync quick`
+or `pia sync quick research`.
 
 1. Creates the directory if it doesn't exist
 2. Writes `settings.json` from the profile definition

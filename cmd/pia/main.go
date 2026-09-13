@@ -22,7 +22,7 @@ func main() {
 	case "update":
 		runUpdate()
 	case "sync":
-		runSync()
+		runSync(os.Args[2:])
 	case "list":
 		runList()
 	case "show":
@@ -48,7 +48,7 @@ func printUsage() {
 Usage:
   pia profile <name> [pi-args...]   Launch pi with the named profile
   pia update                        Update pi and packages for all profiles
-  pia sync                          Generate profile directories from definitions
+  pia sync [profile...]             Generate selected profile directories (all by default)
   pia list                          List available profiles
   pia show <profile>                Show profile configuration details
   pia doctor                        Validate all profiles
