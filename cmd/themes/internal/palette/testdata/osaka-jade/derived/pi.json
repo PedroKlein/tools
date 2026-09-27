@@ -68,7 +68,7 @@
 		"toolPendingBg": "",
 		"toolSuccessBg": "",
 		"toolTitle": "",
-		"userMessageBg": "",
+		"userMessageBg": "surface0",
 		"userMessageText": "",
 		"warning": "yellow"
 	}

@@ -15,10 +15,9 @@ import (
 //
 // TRANSPARENCY POLICY (docs/plans/theme-transparency.md § P4.pi)
 // ==============================================================
-// All `*Bg` color fields default to "" (empty string) so pi's TUI
-// never paints an explicit background color for chat messages, tool
-// blocks, or selected items. Empty is the schema convention for
-// "transparent/default" (same as `text`, `userMessageText`, etc.).
+// Most `*Bg` color fields default to "" (empty string) so pi's TUI
+// does not paint explicit backgrounds for tool blocks or selected items.
+// Empty is the schema convention for "transparent/default".
 //
 // This is what enables Ghostty's `background-opacity-cells = true`
 // policy to render pi's cells uniformly translucent — identical to
@@ -26,11 +25,10 @@ import (
 // visible "pi region" with slightly different opacity blending than
 // the surrounding terminal.
 //
-// Visual differentiation the *Bg fields used to provide (message-type
-// coloring, tool status pills) is now lost. Themes that want it back
-// can set hints.pi.colors.<field> to a palette var; the hint override
-// path below picks it up. Label fg colors (customMessageLabel, etc.)
-// still provide color signal for at-a-glance scanning.
+// User messages use surface0, sourced from the theme's selection_bg,
+// to preserve readable turn boundaries in both light and dark themes.
+// Ghostty still applies cell opacity to that background. Themes can
+// override the choice through hints.pi.colors.<field>.
 
 type piEmitter struct{}
 
@@ -76,47 +74,47 @@ func emitPiJSON(t *Theme, w io.Writer) error {
 	}
 
 	colors := map[string]string{
-		"accent":            "accent",
-		"border":            "surface1",
-		"borderAccent":      "bright",
-		"borderMuted":       "surface1",
-		"success":           "bright",
-		"error":             "red",
-		"warning":           "yellow",
-		"muted":             "muted",
-		"dim":               "muted",
-		"text":              "",
-		"userMessageBg":     "", // transparent (see file header)
-		"userMessageText":   "",
-		"customMessageBg":   "", // transparent
+		"accent":             "accent",
+		"border":             "surface1",
+		"borderAccent":       "bright",
+		"borderMuted":        "surface1",
+		"success":            "bright",
+		"error":              "red",
+		"warning":            "yellow",
+		"muted":              "muted",
+		"dim":                "muted",
+		"text":               "",
+		"userMessageBg":      "surface0",
+		"userMessageText":    "",
+		"customMessageBg":    "", // transparent
 		"customMessageLabel": "purple",
-		"customMessageText": "",
-		"selectedBg":        "", // transparent — selection uses reverse/bold at pi's rendering layer
-		"toolPendingBg":     "", // transparent; toolTitle fg gives status signal
-		"toolSuccessBg":     "",
-		"toolErrorBg":       "",
-		"toolOutput":        "muted",
-		"toolTitle":         "",
-		"mdHeading":         "yellow",
-		"mdLink":            "cyan",
-		"mdLinkUrl":         "muted",
-		"mdCode":            "bright",
-		"mdCodeBlock":       "fg",
-		"mdCodeBlockBorder": "muted",
-		"mdQuote":           "muted",
-		"mdQuoteBorder":     "muted",
-		"mdHr":              "muted",
-		"mdListBullet":      "accent",
-		"toolDiffAdded":     s.Git.Added,
-		"toolDiffRemoved":   s.Git.Removed,
-		"toolDiffContext":   "muted",
-		"syntaxComment":     s.Syntax.Comment,
-		"syntaxKeyword":     s.Syntax.Keyword,
-		"syntaxFunction":    s.Syntax.Function,
-		"syntaxString":      s.Syntax.String,
-		"syntaxNumber":      s.Syntax.Number,
-		"syntaxType":        s.Syntax.Type,
-		"syntaxOperator":    s.Syntax.Operator,
+		"customMessageText":  "",
+		"selectedBg":         "", // transparent — selection uses reverse/bold at pi's rendering layer
+		"toolPendingBg":      "", // transparent; toolTitle fg gives status signal
+		"toolSuccessBg":      "",
+		"toolErrorBg":        "",
+		"toolOutput":         "muted",
+		"toolTitle":          "",
+		"mdHeading":          "yellow",
+		"mdLink":             "cyan",
+		"mdLinkUrl":          "muted",
+		"mdCode":             "bright",
+		"mdCodeBlock":        "fg",
+		"mdCodeBlockBorder":  "muted",
+		"mdQuote":            "muted",
+		"mdQuoteBorder":      "muted",
+		"mdHr":               "muted",
+		"mdListBullet":       "accent",
+		"toolDiffAdded":      s.Git.Added,
+		"toolDiffRemoved":    s.Git.Removed,
+		"toolDiffContext":    "muted",
+		"syntaxComment":      s.Syntax.Comment,
+		"syntaxKeyword":      s.Syntax.Keyword,
+		"syntaxFunction":     s.Syntax.Function,
+		"syntaxString":       s.Syntax.String,
+		"syntaxNumber":       s.Syntax.Number,
+		"syntaxType":         s.Syntax.Type,
+		"syntaxOperator":     s.Syntax.Operator,
 		// Pi has no dedicated slots for variable/punctuation in the schema;
 		// map to sensible reference-strings from vars.
 		"syntaxVariable":    "cyan",
