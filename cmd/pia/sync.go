@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 )
 
 func runSync(names []string) {
@@ -32,6 +33,8 @@ func syncProfiles(agentDir string, names []string) error {
 		for name := range profiles {
 			names = append(names, name)
 		}
+
+		sort.Strings(names)
 	}
 
 	selectedNames := make([]string, 0, len(names))
@@ -91,6 +94,10 @@ func syncProfile(agentDir, name string, profile Profile) error {
 		return fmt.Errorf("syncing resources: %w", err)
 	}
 
+	if err := syncProfileResource(agentDir, outDir, name, "web-search.json"); err != nil {
+		return fmt.Errorf("syncing web-search config: %w", err)
+	}
+
 	// 4. Profile MCP config: symlink profiles/<name>/mcp.json if present
 	if err := syncMcp(agentDir, outDir, name); err != nil {
 		return fmt.Errorf("syncing mcp: %w", err)
@@ -114,45 +121,45 @@ func syncProfile(agentDir, name string, profile Profile) error {
 }
 
 func syncSettings(agentDir, outDir, _ string, profile Profile) error {
-	// Read base settings
-	baseSettingsPath := filepath.Join(agentDir, "settings.json")
-
-	baseData, err := os.ReadFile(baseSettingsPath) //nolint:gosec // path derived from trusted agent dir
+	out, err := renderSettings(agentDir, profile)
 	if err != nil {
-		return fmt.Errorf("reading base settings: %w", err)
+		return err
+	}
+
+	if err := os.WriteFile(filepath.Join(outDir, "settings.json"), out, 0o600); err != nil { //nolint:gosec // outDir belongs to a discovered profile
+		return fmt.Errorf("writing settings: %w", err)
+	}
+
+	return nil
+}
+
+func renderSettings(agentDir string, profile Profile) ([]byte, error) {
+	baseData, err := os.ReadFile(filepath.Join(agentDir, "settings.json")) //nolint:gosec // path derived from trusted agent dir
+	if err != nil {
+		return nil, fmt.Errorf("reading base settings: %w", err)
 	}
 
 	var base map[string]any
-	if parseErr := json.Unmarshal(baseData, &base); parseErr != nil {
-		return fmt.Errorf("parsing base settings: %w", parseErr)
+	if unmarshalErr := json.Unmarshal(baseData, &base); unmarshalErr != nil {
+		return nil, fmt.Errorf("parsing base settings: %w", unmarshalErr)
 	}
-
-	// Apply overrides
 	if profile.SettingsOverrides != nil {
 		base = deepMerge(base, profile.SettingsOverrides)
 	}
-
-	// Replace packages
 	if profile.Packages != nil {
 		pkgs := make([]any, len(profile.Packages))
 		for i, p := range profile.Packages {
 			pkgs[i] = p
 		}
-
 		base["packages"] = pkgs
 	}
 
-	// Write merged settings
 	out, err := json.MarshalIndent(base, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshaling settings: %w", err)
+		return nil, fmt.Errorf("marshaling settings: %w", err)
 	}
 
-	if err := os.WriteFile(filepath.Join(outDir, "settings.json"), out, 0o600); err != nil {
-		return fmt.Errorf("writing settings: %w", err)
-	}
-
-	return nil
+	return out, nil
 }
 
 func syncExtensions(agentDir, outDir, name string, profile Profile) error {
@@ -204,7 +211,7 @@ func syncExtensions(agentDir, outDir, name string, profile Profile) error {
 }
 
 func syncResources(agentDir, outDir string) error {
-	resources := []string{"models.json", "themes", "auth.json"}
+	resources := []string{"models.json", "themes", "auth.json", "web-search.json"}
 	for _, res := range resources {
 		src := filepath.Join(agentDir, res)
 		if _, err := os.Stat(src); os.IsNotExist(err) {
@@ -223,19 +230,43 @@ func syncResources(agentDir, outDir string) error {
 	return nil
 }
 
-// syncMcp symlinks the per-profile mcp.json into the profile's agent dir when
-// present. Profiles without an mcp.json entry are left untouched so a user's
-// hand-written <outDir>/mcp.json is never clobbered by an inference. When the
-// profile does ship an mcp.json, an existing target (symlink, or regular file
-// like the ones agent-personal/mcp.json used to be) is removed and replaced
-// with a symlink to the dotfiles source of truth.
-func syncMcp(agentDir, outDir, name string) error {
-	src := filepath.Join(agentDir, "profiles", name, "mcp.json")
+func syncProfileResource(agentDir, outDir, name, resource string) error {
+	src := filepath.Join(agentDir, "profiles", name, resource)
 	if _, err := os.Stat(src); os.IsNotExist(err) {
-		return nil // profile has no MCP config
+		return nil
 	}
 
+	dst := filepath.Join(outDir, resource)
+	_ = os.Remove(dst) //nolint:gosec // paths belong to a discovered profile
+
+	if err := os.Symlink(src, dst); err != nil {
+		return fmt.Errorf("symlinking %s: %w", resource, err)
+	}
+
+	return nil
+}
+
+// syncMcp preserves user-owned targets while removing a stale symlink that pia
+// previously created for this profile.
+func syncMcp(agentDir, outDir, name string) error {
+	src := filepath.Join(agentDir, "profiles", name, "mcp.json")
 	dst := filepath.Join(outDir, "mcp.json")
+
+	if _, err := os.Stat(src); err != nil { //nolint:gosec // paths belong to a discovered profile
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("reading mcp.json: %w", err)
+		}
+
+		target, readErr := os.Readlink(dst)
+		if readErr == nil && target == src {
+			if removeErr := os.Remove(dst); removeErr != nil { //nolint:gosec // paths belong to a discovered profile
+				return fmt.Errorf("removing stale mcp.json: %w", removeErr)
+			}
+		}
+
+		return nil
+	}
+
 	// Remove existing symlink/file before recreating
 	_ = os.Remove(dst) // best-effort cleanup before recreating symlink
 

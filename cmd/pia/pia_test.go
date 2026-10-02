@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -210,6 +211,447 @@ func TestBuildArgs(t *testing.T) {
 	}
 }
 
+func TestProfileLaunchSyncsBeforeExec(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{
+		"quick": {Packages: []string{"npm:current"}},
+	})
+
+	generatedDir := filepath.Join(filepath.Dir(agentDir), "agent-quick")
+	if err := os.MkdirAll(filepath.Join(generatedDir, "sessions"), 0o750); err != nil {
+		t.Fatalf("creating generated profile: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(generatedDir, "settings.json"), []byte(`{"packages":["npm:stale"]}`), 0o600); err != nil {
+		t.Fatalf("writing stale settings: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(generatedDir, "sessions", "keep"), []byte("session"), 0o600); err != nil {
+		t.Fatalf("writing session sentinel: %v", err)
+	}
+
+	for _, path := range []string{"npm/keep", "memory/keep", "mcp-auth.json", "runtime-state"} {
+		fullPath := filepath.Join(generatedDir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o750); err != nil {
+			t.Fatalf("creating runtime sentinel parent: %v", err)
+		}
+
+		if err := os.WriteFile(fullPath, []byte("keep"), 0o600); err != nil {
+			t.Fatalf("writing runtime sentinel: %v", err)
+		}
+	}
+
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+	script := `#!/bin/sh
+cat "$PI_CODING_AGENT_DIR/settings.json"
+test -f "$PI_CODING_AGENT_DIR/sessions/keep"
+test -f "$PI_CODING_AGENT_DIR/npm/keep"
+test -f "$PI_CODING_AGENT_DIR/memory/keep"
+test -f "$PI_CODING_AGENT_DIR/mcp-auth.json"
+test -f "$PI_CODING_AGENT_DIR/runtime-state"
+`
+	writeExecutable(t, piPath, script)
+
+	cmd := piaCommand(t, agentDir, "profile", "quick")
+	cmd.Env = append(cmd.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pia profile: %v\n%s", err, out)
+	}
+
+	if !strings.Contains(string(out), `"npm:current"`) {
+		t.Fatalf("profile launched with stale settings:\n%s", out)
+	}
+}
+
+func TestUpdateSynchronizesAroundOrderedExtensionUpdates(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{
+		"zeta":  {Packages: []string{"npm:zeta-current"}},
+		"alpha": {Packages: []string{"npm:alpha-current"}},
+	})
+	logPath := filepath.Join(t.TempDir(), "commands.log")
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+	script := `#!/bin/sh
+printf '%s|%s\n' "$PI_CODING_AGENT_DIR" "$*" >> "$PIA_TEST_LOG"
+if [ "$*" = "update --extensions" ] && [ "$PI_CODING_AGENT_DIR" = "$(dirname "$PIA_AGENT_DIR")/agent-alpha" ]; then
+  grep -q 'npm:alpha-current' "$PI_CODING_AGENT_DIR/settings.json"
+fi
+if [ "$*" = "update --extensions" ] && [ "$PI_CODING_AGENT_DIR" = "$(dirname "$PIA_AGENT_DIR")/agent-zeta" ]; then
+  printf '%s\n' '{"packages":["npm:zeta-after-update"]}' > "$PIA_AGENT_DIR/profiles/zeta/profile.json"
+fi
+`
+	writeExecutable(t, piPath, script)
+
+	cmd := piaCommand(t, agentDir, "update")
+	cmd.Env = append(cmd.Env,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"PIA_TEST_LOG="+logPath,
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pia update: %v\n%s", err, out)
+	}
+
+	logData, err := os.ReadFile(logPath) //nolint:gosec // test path is under t.TempDir
+	if err != nil {
+		t.Fatalf("reading command log: %v", err)
+	}
+
+	parentDir := filepath.Dir(agentDir)
+
+	want := strings.Join([]string{
+		agentDir + "|update",
+		agentDir + "|update --extensions",
+		filepath.Join(parentDir, "agent-alpha") + "|update --extensions",
+		filepath.Join(parentDir, "agent-zeta") + "|update --extensions",
+	}, "\n") + "\n"
+	if string(logData) != want {
+		t.Fatalf("command log:\n%s\nwant:\n%s", logData, want)
+	}
+
+	zetaSettings, err := os.ReadFile(filepath.Join(parentDir, "agent-zeta", "settings.json")) //nolint:gosec // test-managed profile path
+	if err != nil {
+		t.Fatalf("reading post-update settings: %v", err)
+	}
+
+	if !strings.Contains(string(zetaSettings), "npm:zeta-after-update") {
+		t.Fatalf("profiles were not synchronized after updates:\n%s", zetaSettings)
+	}
+}
+
+func TestUpdateOptions(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		args []string
+		want func(agentDir string) string
+	}{
+		{
+			name: "extensions only",
+			args: []string{"--extensions-only"},
+			want: func(agentDir string) string {
+				return strings.Join([]string{
+					"pi|" + agentDir + "|update --extensions",
+					"pi|" + filepath.Join(filepath.Dir(agentDir), "agent-quick") + "|update --extensions",
+				}, "\n") + "\n"
+			},
+		},
+		{
+			name: "exact Pi version",
+			args: []string{"--pi-version", "1.0.0"},
+			want: func(agentDir string) string {
+				return strings.Join([]string{
+					"npm||install --global --ignore-scripts @earendil-works/pi-coding-agent@1.0.0",
+					"pi|" + agentDir + "|update --extensions",
+					"pi|" + filepath.Join(filepath.Dir(agentDir), "agent-quick") + "|update --extensions",
+				}, "\n") + "\n"
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}})
+			logPath := filepath.Join(t.TempDir(), "commands.log")
+			binDir := t.TempDir()
+
+			for _, name := range []string{"pi", "npm"} {
+				script := fmt.Sprintf("#!/bin/sh\nprintf '%s|%%s|%%s\\n' \"$PI_CODING_AGENT_DIR\" \"$*\" >> \"$PIA_TEST_LOG\"\n", name)
+				writeExecutable(t, filepath.Join(binDir, name), script)
+			}
+
+			args := append([]string{"update"}, tt.args...)
+			cmd := piaCommand(t, agentDir, args...)
+			cmd.Env = append(cmd.Env,
+				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"PIA_TEST_LOG="+logPath,
+			)
+
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				t.Fatalf("pia update: %v\n%s", err, out)
+			}
+
+			logData, err := os.ReadFile(logPath) //nolint:gosec // test path is under t.TempDir
+			if err != nil {
+				t.Fatalf("reading command log: %v", err)
+			}
+
+			if string(logData) != tt.want(agentDir) {
+				t.Fatalf("command log:\n%s\nwant:\n%s", logData, tt.want(agentDir))
+			}
+		})
+	}
+}
+
+func TestExactUpdateInstallsBeforeLookingUpPi(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}})
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+
+	piScript := "#!/bin/sh\nexit 0\n"
+	if err := os.WriteFile(piPath, []byte(piScript), 0o600); err != nil {
+		t.Fatalf("writing inactive pi: %v", err)
+	}
+
+	npmScript := "#!/bin/sh\n/bin/chmod +x \"$PIA_TEST_PI_PATH\"\n"
+	writeExecutable(t, filepath.Join(binDir, "npm"), npmScript)
+
+	cmd := piaCommand(t, agentDir, "update", "--pi-version", "1.0.0")
+	cmd.Env = append(cmd.Env,
+		"PATH="+binDir,
+		"PIA_TEST_PI_PATH="+piPath,
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("exact update looked up Pi before installation: %v\n%s", err, out)
+	}
+}
+
+func TestUpdateStopsAtFirstFailure(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{
+		"quick": {Packages: []string{"npm:before-failure"}},
+	})
+	logPath := filepath.Join(t.TempDir(), "commands.log")
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+	script := `#!/bin/sh
+printf '%s|%s\n' "$PI_CODING_AGENT_DIR" "$*" >> "$PIA_TEST_LOG"
+if [ "$*" = "update" ]; then
+  printf '%s\n' '{"packages":["npm:after-failure"]}' > "$PIA_AGENT_DIR/profiles/quick/profile.json"
+  exit 0
+fi
+exit 9
+`
+	writeExecutable(t, piPath, script)
+	cmd := piaCommand(t, agentDir, "update")
+	cmd.Env = append(cmd.Env,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"PIA_TEST_LOG="+logPath,
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("pia update accepted failed extension update:\n%s", out)
+	}
+
+	logData, err := os.ReadFile(logPath) //nolint:gosec // test path is under t.TempDir
+	if err != nil {
+		t.Fatalf("reading command log: %v", err)
+	}
+
+	want := agentDir + "|update\n" + agentDir + "|update --extensions\n"
+	if string(logData) != want {
+		t.Fatalf("update continued after failure:\n%s\nwant:\n%s", logData, want)
+	}
+
+	settings, err := os.ReadFile(filepath.Join(filepath.Dir(agentDir), "agent-quick", "settings.json"))
+	if err != nil {
+		t.Fatalf("reading generated settings: %v", err)
+	}
+
+	if strings.Contains(string(settings), "npm:after-failure") {
+		t.Fatalf("post-update sync ran after failure:\n%s", settings)
+	}
+}
+
+func TestUpdateRejectsInvalidOptions(t *testing.T) {
+	for _, args := range [][]string{
+		{"--pi-version"},
+		{"--pi-version", "latest"},
+		{"--extensions-only", "--pi-version", "1.0.0"},
+		{"--unknown"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			cmd := piaCommand(t, t.TempDir(), append([]string{"update"}, args...)...)
+
+			out, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("pia update accepted invalid options %v:\n%s", args, out)
+			}
+		})
+	}
+}
+
+func TestDoctorReportsPiVersionAndChecksOfflineProfiles(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{
+		"zeta":  {},
+		"alpha": {},
+	})
+	if err := syncProfiles(agentDir, nil); err != nil {
+		t.Fatalf("syncing profiles: %v", err)
+	}
+
+	logPath := filepath.Join(t.TempDir(), "commands.log")
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+	script := `#!/bin/sh
+if [ "$*" = "--version" ]; then
+  printf '%s\n' '1.0.0'
+  exit 0
+fi
+printf '%s|%s|%s\n' "$PI_CODING_AGENT_DIR" "$PI_OFFLINE" "$*" >> "$PIA_TEST_LOG"
+`
+	writeExecutable(t, piPath, script)
+
+	cmd := piaCommand(t, agentDir, "doctor")
+	cmd.Env = append(cmd.Env,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"PIA_TEST_LOG="+logPath,
+	)
+
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("pia doctor: %v\n%s", err, out)
+	}
+
+	if !strings.Contains(string(out), "Pi version: 1.0.0") {
+		t.Fatalf("doctor did not report Pi version:\n%s", out)
+	}
+
+	logData, err := os.ReadFile(logPath) //nolint:gosec // test path is under t.TempDir
+	if err != nil {
+		t.Fatalf("reading command log: %v", err)
+	}
+
+	parentDir := filepath.Dir(agentDir)
+
+	want := strings.Join([]string{
+		agentDir + "|1|list --no-approve",
+		filepath.Join(parentDir, "agent-alpha") + "|1|list --no-approve",
+		filepath.Join(parentDir, "agent-zeta") + "|1|list --no-approve",
+	}, "\n") + "\n"
+	if string(logData) != want {
+		t.Fatalf("command log:\n%s\nwant:\n%s", logData, want)
+	}
+}
+
+func TestDoctorRejectsInvalidProfile(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}})
+	if err := syncProfiles(agentDir, nil); err != nil {
+		t.Fatalf("syncing profiles: %v", err)
+	}
+
+	brokenDir := filepath.Join(agentDir, "profiles", "broken")
+	if err := os.MkdirAll(brokenDir, 0o750); err != nil {
+		t.Fatalf("creating broken profile: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(brokenDir, "profile.json"), []byte(`{`), 0o600); err != nil {
+		t.Fatalf("writing broken profile: %v", err)
+	}
+
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+	script := "#!/bin/sh\n[ \"$1\" = \"--version\" ] && echo 1.0.0\nexit 0\n"
+	writeExecutable(t, piPath, script)
+	cmd := piaCommand(t, agentDir, "doctor")
+	cmd.Env = append(cmd.Env, "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("doctor accepted invalid profile:\n%s", out)
+	}
+
+	if !strings.Contains(string(out), `invalid profile "broken"`) {
+		t.Fatalf("doctor did not identify invalid profile:\n%s", out)
+	}
+}
+
+func TestDoctorRejectsGeneratedSettingsDrift(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{
+		"quick": {Packages: []string{"npm:current"}},
+	})
+	if err := syncProfiles(agentDir, nil); err != nil {
+		t.Fatalf("syncing profiles: %v", err)
+	}
+
+	settingsPath := filepath.Join(filepath.Dir(agentDir), "agent-quick", "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"packages":["npm:stale"]}`), 0o600); err != nil {
+		t.Fatalf("writing stale settings: %v", err)
+	}
+
+	out, err := doctorCommand(t, agentDir, "")
+	if err == nil {
+		t.Fatalf("doctor accepted settings drift:\n%s", out)
+	}
+
+	if !strings.Contains(out, "settings drift") {
+		t.Fatalf("doctor did not identify settings drift:\n%s", out)
+	}
+}
+
+func TestDoctorRejectsManagedLinkDrift(t *testing.T) {
+	for _, resource := range []string{"mcp.json", "web-search.json"} {
+		t.Run(resource, func(t *testing.T) {
+			agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}})
+
+			profileDir := filepath.Join(agentDir, "profiles", "quick")
+			if err := os.WriteFile(filepath.Join(profileDir, "mcp.json"), []byte(`{}`), 0o600); err != nil {
+				t.Fatalf("writing MCP config: %v", err)
+			}
+
+			if err := os.WriteFile(filepath.Join(agentDir, "web-search.json"), []byte(`{}`), 0o600); err != nil {
+				t.Fatalf("writing web config: %v", err)
+			}
+
+			if err := syncProfiles(agentDir, nil); err != nil {
+				t.Fatalf("syncing profiles: %v", err)
+			}
+
+			link := filepath.Join(filepath.Dir(agentDir), "agent-quick", resource)
+			if err := os.Remove(link); err != nil {
+				t.Fatalf("removing managed link: %v", err)
+			}
+
+			if err := os.Symlink(filepath.Join(agentDir, "foreign.json"), link); err != nil {
+				t.Fatalf("writing foreign link: %v", err)
+			}
+
+			out, err := doctorCommand(t, agentDir, "")
+			if err == nil {
+				t.Fatalf("doctor accepted %s link drift:\n%s", resource, out)
+			}
+
+			if !strings.Contains(out, resource+" link drift") {
+				t.Fatalf("doctor did not identify %s link drift:\n%s", resource, out)
+			}
+		})
+	}
+}
+
+func TestDoctorRejectsMissingProfileAndPiWarnings(t *testing.T) {
+	t.Run("missing generated profile", func(t *testing.T) {
+		agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}})
+
+		out, err := doctorCommand(t, agentDir, "")
+		if err == nil {
+			t.Fatalf("doctor accepted missing generated profile:\n%s", out)
+		}
+
+		if !strings.Contains(out, "not synced") {
+			t.Fatalf("doctor did not identify missing generated profile:\n%s", out)
+		}
+	})
+
+	t.Run("offline package warning", func(t *testing.T) {
+		agentDir := newSyncTestAgentDir(t, map[string]Profile{"quick": {}})
+		if err := syncProfiles(agentDir, nil); err != nil {
+			t.Fatalf("syncing profiles: %v", err)
+		}
+
+		out, err := doctorCommand(t, agentDir, "Warning: incompatible package")
+		if err == nil {
+			t.Fatalf("doctor accepted package warning:\n%s", out)
+		}
+
+		if !strings.Contains(out, "pi list warnings") {
+			t.Fatalf("doctor did not identify package warning:\n%s", out)
+		}
+	})
+}
+
 func TestDeepMerge(t *testing.T) {
 	t.Run("scalar override", func(t *testing.T) {
 		base := map[string]any{"key": "old"}
@@ -357,6 +799,29 @@ func TestSyncProfilesSelection(t *testing.T) {
 	}
 }
 
+func TestSyncAllProfilesUsesStableOrder(t *testing.T) {
+	agentDir := newSyncTestAgentDir(t, map[string]Profile{
+		"zeta":   {},
+		"alpha":  {},
+		"middle": {},
+	})
+	for range 20 {
+		out, err := piaCommand(t, agentDir, "sync").CombinedOutput()
+		if err != nil {
+			t.Fatalf("pia sync: %v\n%s", err, out)
+		}
+
+		text := string(out)
+		alpha := strings.Index(text, "agent-alpha")
+		middle := strings.Index(text, "agent-middle")
+
+		zeta := strings.Index(text, "agent-zeta")
+		if alpha < 0 || middle < alpha || zeta < middle {
+			t.Fatalf("profiles were not synced alphabetically:\n%s", out)
+		}
+	}
+}
+
 func TestSyncCommandSelectionAndErrors(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -430,6 +895,41 @@ func TestPIACommandHelper(_ *testing.T) {
 	os.Args = os.Args[separator:]
 
 	main()
+}
+
+func writeExecutable(t *testing.T, path, content string) {
+	t.Helper()
+
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("writing executable: %v", err)
+	}
+
+	if err := os.Chmod(path, 0o700); err != nil { //nolint:gosec // test executable is private to t.TempDir
+		t.Fatalf("making executable: %v", err)
+	}
+}
+
+func doctorCommand(t *testing.T, agentDir, listOutput string) (string, error) {
+	t.Helper()
+	binDir := t.TempDir()
+	piPath := filepath.Join(binDir, "pi")
+	script := `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  printf '%s\n' '1.0.0'
+  exit 0
+fi
+printf '%s' "$PIA_TEST_LIST_OUTPUT"
+exit 0
+`
+	writeExecutable(t, piPath, script)
+	cmd := piaCommand(t, agentDir, "doctor")
+	cmd.Env = append(cmd.Env,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
+		"PIA_TEST_LIST_OUTPUT="+listOutput,
+	)
+	out, err := cmd.CombinedOutput()
+
+	return string(out), err
 }
 
 func piaCommand(t *testing.T, agentDir string, args ...string) *exec.Cmd {
@@ -601,6 +1101,54 @@ func TestSyncIdempotent(t *testing.T) {
 	}
 }
 
+func TestSyncWebSearchUsesProfileOverrideOrBase(t *testing.T) {
+	agentDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("writing settings: %v", err)
+	}
+
+	baseConfig := filepath.Join(agentDir, "web-search.json")
+	if err := os.WriteFile(baseConfig, []byte(`{"toolActivation":"dynamic"}`), 0o600); err != nil {
+		t.Fatalf("writing base web config: %v", err)
+	}
+
+	for _, name := range []string{"quick", "personal"} {
+		profileDir := filepath.Join(agentDir, "profiles", name)
+		if err := os.MkdirAll(profileDir, 0o750); err != nil {
+			t.Fatalf("creating profile %s: %v", name, err)
+		}
+	}
+
+	personalConfig := filepath.Join(agentDir, "profiles", "personal", "web-search.json")
+	if err := os.WriteFile(personalConfig, []byte(`{"provider":"tavily","toolActivation":"dynamic"}`), 0o600); err != nil {
+		t.Fatalf("writing personal web config: %v", err)
+	}
+
+	for _, name := range []string{"quick", "personal"} {
+		if err := syncProfile(agentDir, name, Profile{}); err != nil {
+			t.Fatalf("syncing %s: %v", name, err)
+		}
+	}
+
+	quickTarget, err := os.Readlink(filepath.Join(filepath.Dir(agentDir), "agent-quick", "web-search.json"))
+	if err != nil {
+		t.Fatalf("quick web-search.json is not a symlink: %v", err)
+	}
+
+	if quickTarget != baseConfig {
+		t.Errorf("quick target = %q, want %q", quickTarget, baseConfig)
+	}
+
+	personalTarget, err := os.Readlink(filepath.Join(filepath.Dir(agentDir), "agent-personal", "web-search.json"))
+	if err != nil {
+		t.Fatalf("personal web-search.json is not a symlink: %v", err)
+	}
+
+	if personalTarget != personalConfig {
+		t.Errorf("personal target = %q, want %q", personalTarget, personalConfig)
+	}
+}
+
 func TestSyncMcpSymlinked(t *testing.T) {
 	agentDir := t.TempDir()
 	os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o644) //nolint:gosec // test setup
@@ -660,6 +1208,64 @@ func TestSyncMcpMissingLeavesTargetUntouched(t *testing.T) {
 
 	if string(got) != string(preExisting) {
 		t.Errorf("mcp.json was rewritten: got %q, want %q", got, preExisting)
+	}
+}
+
+func TestSyncMcpMissingRemovesOnlyManagedSymlink(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		target     func(agentDir string) string
+		wantExists bool
+	}{
+		{
+			name: "managed",
+			target: func(agentDir string) string {
+				return filepath.Join(agentDir, "profiles", "quick", "mcp.json")
+			},
+			wantExists: false,
+		},
+		{
+			name: "foreign",
+			target: func(agentDir string) string {
+				return filepath.Join(agentDir, "user-mcp.json")
+			},
+			wantExists: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			agentDir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(agentDir, "settings.json"), []byte(`{}`), 0o600); err != nil {
+				t.Fatalf("writing settings: %v", err)
+			}
+
+			profileDir := filepath.Join(agentDir, "profiles", "quick")
+			if err := os.MkdirAll(profileDir, 0o750); err != nil {
+				t.Fatalf("creating profile: %v", err)
+			}
+
+			outDir := filepath.Join(filepath.Dir(agentDir), "agent-quick")
+			if err := os.MkdirAll(outDir, 0o750); err != nil {
+				t.Fatalf("creating output: %v", err)
+			}
+
+			link := filepath.Join(outDir, "mcp.json")
+			if err := os.Symlink(tt.target(agentDir), link); err != nil {
+				t.Fatalf("creating MCP symlink: %v", err)
+			}
+
+			if err := syncProfile(agentDir, "quick", Profile{}); err != nil {
+				t.Fatalf("syncing profile: %v", err)
+			}
+
+			_, err := os.Lstat(link)
+			if tt.wantExists && err != nil {
+				t.Fatalf("foreign MCP symlink was removed: %v", err)
+			}
+
+			if !tt.wantExists && !os.IsNotExist(err) {
+				t.Fatalf("managed MCP symlink remains: %v", err)
+			}
+		})
 	}
 }
 

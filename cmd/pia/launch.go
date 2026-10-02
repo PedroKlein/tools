@@ -70,14 +70,12 @@ func launchProfile(name string, extraArgs []string) {
 		os.Exit(1)
 	}
 
-	// Check synced directory exists
-	parentDir := filepath.Dir(agentDir)
-
-	syncedDir := filepath.Join(parentDir, "agent-"+name)
-	if _, statErr := os.Stat(syncedDir); os.IsNotExist(statErr) { //nolint:gosec // syncedDir is a computed path within the user's home directory
-		fmt.Fprintf(os.Stderr, "error: profile %q not synced — run: pia sync\n", name)
+	if syncErr := syncProfile(agentDir, name, profile); syncErr != nil {
+		fmt.Fprintf(os.Stderr, "error: syncing profile %q: %v\n", name, syncErr)
 		os.Exit(1)
 	}
+
+	syncedDir := filepath.Join(filepath.Dir(agentDir), "agent-"+name)
 
 	// Find pi binary
 	piPath, err := exec.LookPath("pi")

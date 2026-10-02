@@ -74,7 +74,7 @@ func discoverProfiles(agentDir string) (map[string]Profile, error) {
 
 		p, err := loadProfile(profilePath)
 		if err != nil {
-			continue // skip profiles that can't be loaded
+			return nil, fmt.Errorf("invalid profile %q: %w", entry.Name(), err)
 		}
 
 		profiles[entry.Name()] = p

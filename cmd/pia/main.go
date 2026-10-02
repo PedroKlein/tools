@@ -20,7 +20,13 @@ func main() {
 
 		launchProfile(os.Args[2], os.Args[3:])
 	case "update":
-		runUpdate()
+		options, err := parseUpdateOptions(os.Args[2:])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
+		runUpdate(options)
 	case "sync":
 		runSync(os.Args[2:])
 	case "list":
@@ -47,7 +53,8 @@ func printUsage() {
 
 Usage:
   pia profile <name> [pi-args...]   Launch pi with the named profile
-  pia update                        Update pi and packages for all profiles
+  pia update [--extensions-only | --pi-version VERSION]
+                                    Update Pi and packages for all profiles
   pia sync [profile...]             Generate selected profile directories (all by default)
   pia list                          List available profiles
   pia show <profile>                Show profile configuration details
