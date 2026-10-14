@@ -107,7 +107,7 @@ func saveTo(s State, path string) error {
 		s.SchemaVersion = SchemaVersion
 	}
 	if s.ChangedAt == "" {
-		s.ChangedAt = time.Now().UTC().Format(time.RFC3339)
+		s.ChangedAt = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {

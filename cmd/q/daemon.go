@@ -264,6 +264,11 @@ func (d *Daemon) handlePrompt(conn net.Conn, message string) {
 			return
 		}
 
+		if piEvent.IsResponse() && piEvent.ID == msg.ID && piEvent.Success != nil && !*piEvent.Success {
+			writeError(conn, piEvent.Error)
+			return
+		}
+
 		if err := Encode(conn, piEvent); err != nil {
 			return // client disconnected
 		}

@@ -1,0 +1,4 @@
+window#osd { background: #111C18; border-color: #549E6A; }
+window#osd image, window#osd label { color: #C1C497; }
+window#osd trough, window#osd segment { background: #0D1512; }
+window#osd progress, window#osd segment.active { background: #549E6A; }

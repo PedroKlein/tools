@@ -43,7 +43,7 @@ var applyWallpaperHook = func(themeRoot string) error {
 	liveApply := false
 	skip := map[string]bool{}
 	for _, h := range reload.Registry() {
-		if h.Name != "wallpaper" {
+		if h.Name != "wallpaper" && h.Name != "screens" {
 			skip[h.Name] = true
 		}
 	}
@@ -99,6 +99,7 @@ func SetWallpaper(path string) error {
 		}
 		s.WallpaperByTheme[s.Theme] = abs
 	}
+	s.ChangedAt = ""
 	if err := xdgstate.Save(*s); err != nil {
 		return err
 	}

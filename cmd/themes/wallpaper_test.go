@@ -28,7 +28,7 @@ func TestSetWallpaperUpdatesStateAndRunsWallpaperHook(t *testing.T) {
 	if err := os.WriteFile(wallpaper, []byte("jpg"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := xdgstate.Save(xdgstate.State{Theme: "osaka-jade"}); err != nil {
+	if err := xdgstate.Save(xdgstate.State{Theme: "osaka-jade", ChangedAt: "2000-01-01T00:00:00Z"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -56,6 +56,9 @@ func TestSetWallpaperUpdatesStateAndRunsWallpaperHook(t *testing.T) {
 	}
 	if state.WallpaperByTheme["osaka-jade"] != wallpaper {
 		t.Fatalf("wallpaper_by_theme not updated: %#v", state.WallpaperByTheme)
+	}
+	if state.ChangedAt == "2000-01-01T00:00:00Z" {
+		t.Fatal("wallpaper commit retained old state revision")
 	}
 }
 

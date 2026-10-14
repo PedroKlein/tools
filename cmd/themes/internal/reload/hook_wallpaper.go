@@ -70,7 +70,7 @@ func resolveWallpaperForMode(themeDir string, liveApply bool) string {
 		return resolveWallpaperPreview(themeDir)
 	}
 	// 1. XDG state.
-	if s, err := xdgstate.Load(); err == nil && s != nil && s.Wallpaper != "" {
+	if s, err := xdgstate.Load(); err == nil && s != nil && wallpaperExists(s.Wallpaper) {
 		return s.Wallpaper
 	}
 	// 2. First background in the theme dir.
@@ -79,11 +79,17 @@ func resolveWallpaperForMode(themeDir string, liveApply bool) string {
 
 func resolveWallpaperPreview(themeDir string) string {
 	if s, err := xdgstate.Load(); err == nil && s != nil {
-		if wp := s.WallpaperByTheme[themeName(themeDir)]; wp != "" {
+		if wp := s.WallpaperByTheme[themeName(themeDir)]; wallpaperExists(wp) {
 			return wp
 		}
 	}
 	return firstWallpaperInTheme(themeDir)
+}
+
+func wallpaperExists(path string) bool {
+	info, err := os.Stat(path)
+
+	return err == nil && info.Mode().IsRegular()
 }
 
 func firstWallpaperInTheme(themeDir string) string {
@@ -95,7 +101,7 @@ func firstWallpaperInTheme(themeDir string) string {
 	// Sort by name for determinism.
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if e.IsDir() {
+		if !wallpaperExists(filepath.Join(bg, e.Name())) {
 			continue
 		}
 		lower := strings.ToLower(e.Name())
@@ -142,9 +148,12 @@ func setWallpaperDarwin(ctx context.Context, wp string) error {
 }
 
 func setWallpaperLinux(ctx context.Context, wp string) error {
-	if _, err := exec.LookPath("swww"); err == nil {
-		_ = exec.CommandContext(ctx, "swww", "query").Run()
-		if err := exec.CommandContext(ctx, "swww", "img", wp,
+	for _, setter := range []string{"awww", "swww"} {
+		if _, err := exec.LookPath(setter); err != nil {
+			continue
+		}
+
+		if err := exec.CommandContext(ctx, setter, "img", wp,
 			"--transition-type", "any").Run(); err == nil {
 			return nil
 		}

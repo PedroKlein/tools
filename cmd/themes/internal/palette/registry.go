@@ -12,6 +12,13 @@ func init() {
 		sketchybarEmitter{},
 		aerospaceEmitter{},
 		starshipEmitter{},
+		hyprlandEmitter{},
+		waybarEmitter{},
+		hyprlockEmitter{},
+		sddmEmitter{},
+		fuzzelEmitter{},
+		makoEmitter{},
+		swayosdEmitter{},
 		// Wave 2: editor + shell.
 		nvimEmitter{},
 		piEmitter{},

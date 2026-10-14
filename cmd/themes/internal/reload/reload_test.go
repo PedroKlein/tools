@@ -26,9 +26,9 @@ func TestRegistryStableOrder(t *testing.T) {
 	// Names are alphabetical for readability; if you reshuffle, do it
 	// deliberately.
 	names := []string{
-		"bat", "btop", "gh-dash", "ghostty", "herdr", "k9s", "lazygit",
-		"nvim", "omp", "opencode", "sketchybar", "television",
-		"osc-broadcast", "macos-system", "pi", "tmux", "wallpaper",
+		"bat", "btop", "gh-dash", "ghostty", "herdr", "hyprland", "k9s", "lazygit", "linux-system", "mako",
+		"nvim", "omp", "opencode", "screens", "sketchybar", "swayosd", "television",
+		"osc-broadcast", "macos-system", "pi", "tmux", "waybar", "wallpaper",
 	}
 	reg := Registry()
 	for i, expected := range names {

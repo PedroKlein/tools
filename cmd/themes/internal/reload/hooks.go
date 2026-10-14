@@ -23,6 +23,8 @@ import (
 // scroll stays snappy. Rule of thumb: if the hook only takes effect on
 // app relaunch, LiveApply=false (no point retinting an app that isn't
 // visibly re-tinted yet).
+const osLinux = "linux"
+
 var registry = []Hook{
 	// --- Inline (Go) hooks -----------------------------------------------
 
@@ -62,6 +64,13 @@ var registry = []Hook{
 		Fn:         hookHerdr,
 	},
 	{
+		Name:       "hyprland",
+		RunPreview: true,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookHyprland,
+	},
+	{
 		Name:       "k9s",
 		RunPreview: true,
 		RunCommit:  true,
@@ -71,6 +80,20 @@ var registry = []Hook{
 		Name:      "lazygit",
 		Kind:      KindNoop,
 		LiveApply: false,
+	},
+	{
+		Name:       "linux-system",
+		RunPreview: false,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookLinuxSystem,
+	},
+	{
+		Name:       "mako",
+		RunPreview: true,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookMako,
 	},
 	{
 		Name:         "nvim",
@@ -95,11 +118,25 @@ var registry = []Hook{
 		LiveApply: false, // opencode reads tui.json on next launch
 	},
 	{
+		Name:       "screens",
+		RunPreview: false,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookScreens,
+	},
+	{
 		Name:       "sketchybar",
 		RunPreview: false,
 		RunCommit:  true,
 		OS:         "darwin",
 		Fn:         hookSketchybar,
+	},
+	{
+		Name:       "swayosd",
+		RunPreview: false,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookSwayOSD,
 	},
 	{
 		Name:      "television",
@@ -154,6 +191,13 @@ var registry = []Hook{
 		RunPreview: true,
 		RunCommit:  true,
 		Fn:         hookTmux,
+	},
+	{
+		Name:       "waybar",
+		RunPreview: true,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookWaybar,
 	},
 	{
 		// Ported to Go in b5. Prefers desktoppr (no Automation prompt,
