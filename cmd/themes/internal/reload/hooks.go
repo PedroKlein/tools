@@ -41,6 +41,13 @@ var registry = []Hook{
 		LiveApply: false, // btop only reads config at launch
 	},
 	{
+		Name:       "dolphin",
+		RunPreview: true,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookDolphin,
+	},
+	{
 		Name:      "gh-dash",
 		Kind:      KindNoop,
 		LiveApply: false,
@@ -116,6 +123,13 @@ var registry = []Hook{
 		Kind:      KindInline,
 		Fn:        reloadOpencode,
 		LiveApply: false, // opencode reads tui.json on next launch
+	},
+	{
+		Name:       "openrgb",
+		RunPreview: true,
+		RunCommit:  true,
+		OS:         osLinux,
+		Fn:         hookOpenRGB,
 	},
 	{
 		Name:       "screens",

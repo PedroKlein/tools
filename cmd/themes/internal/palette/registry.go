@@ -14,6 +14,7 @@ func init() {
 		starshipEmitter{},
 		hyprlandEmitter{},
 		waybarEmitter{},
+		dolphinEmitter{},
 		hyprlockEmitter{},
 		sddmEmitter{},
 		fuzzelEmitter{},
